@@ -1,6 +1,8 @@
 # dsnparse
 
-Parse dsn connection url strings. I kept duplicating dsn parsing code for [prom](https://github.com/firstopinion/prom), and also for morp, and I realized I was going to need many more dsn urls in the future and I realized I was going to need something a little more modular.
+Parse [dsn connection url strings](http://en.wikipedia.org/wiki/Data_source_name). I kept duplicating dsn parsing code for things like [prom](https://github.com/firstopinion/prom) and morp, and I realized I was going to need many more dsn urls in the future so I decided to create something a little more modular.
+
+This is a generic version of [dj-database-url](https://github.com/kennethreitz/dj-database-url).
 
 So, now you can create dsns like this:
 
