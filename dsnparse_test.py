@@ -7,6 +7,40 @@ class DsnParseTest(TestCase):
     def test_parse(self):
         tests = [
             (
+                'scheme://:password@host:1234/bar/che?option1=opt_val1&option2=opt_val2#anchor',
+                {
+                    'scheme': 'scheme',
+                    'schemes': ['scheme'],
+                    'username': '',
+                    'password': 'password',
+                    'netloc': ':password@host:1234',
+                    'host': 'host',
+                    'hostloc': 'host:1234',
+                    'path': '/bar/che',
+                    'paths': ['bar', 'che'],
+                    'hostname': 'host',
+                    'query': {'option1': 'opt_val1', 'option2': 'opt_val2'},
+                    'fragment': 'anchor'
+                }
+            ),
+            (
+                'scheme://username@host:1234/bar/che?option1=opt_val1&option2=opt_val2#anchor',
+                {
+                    'scheme': 'scheme',
+                    'schemes': ['scheme'],
+                    'username': 'username',
+                    'password': None,
+                    'netloc': 'username@host:1234',
+                    'host': 'host',
+                    'hostloc': 'host:1234',
+                    'path': '/bar/che',
+                    'paths': ['bar', 'che'],
+                    'hostname': 'host',
+                    'query': {'option1': 'opt_val1', 'option2': 'opt_val2'},
+                    'fragment': 'anchor'
+                }
+            ),
+            (
                 'scheme://username:password@host:1234/bar/che?option1=opt_val1&option2=opt_val2#anchor',
                 {
                     'scheme': 'scheme',

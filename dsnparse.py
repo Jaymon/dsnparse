@@ -2,7 +2,7 @@ import urlparse
 import re
 import os
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 def parse_environ(name, **default_vals):
     """
@@ -114,10 +114,16 @@ class ParseResult(object):
     def netloc(self):
         """return username:password@hostname:port"""
         s = ''
-        if self.username and self.password:
-            s += "{}:{}@".format(self.username, self.password)
+        prefix = ''
+        if self.username:
+            s += self.username
+            prefix = '@'
 
-        s += self.hostloc
+        if self.password:
+            s += ":{}".format(self.password)
+            prefix = '@'
+
+        s += "{}{}".format(prefix, self.hostloc)
         return s
 
     @property
