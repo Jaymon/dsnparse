@@ -5,7 +5,8 @@ except ImportError:
 import re
 import os
 
-__version__ = '0.1.3'
+
+__version__ = '0.1.4'
 
 
 def parse_environ(name, **defaults):
