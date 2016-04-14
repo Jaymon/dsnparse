@@ -1,4 +1,4 @@
-from unittest import TestCase
+from unittest import TestCase, main
 import os
 
 import dsnparse
@@ -92,7 +92,7 @@ class DsnParseTest(TestCase):
 
         for dsn, test_out in tests:
             r = dsnparse.parse(dsn)
-            for k, v in test_out.iteritems():
+            for k, v in test_out.items():
                 self.assertEqual(v, getattr(r, k))
 
         with self.assertRaises(AssertionError):
@@ -147,4 +147,7 @@ class DsnParseTest(TestCase):
         r = dsnparse.parse(dsn, port=1235)
         self.assertEqual(1235, r.port)
 
+
+if __name__ == '__main__':
+    main()
 

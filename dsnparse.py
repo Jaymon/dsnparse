@@ -1,28 +1,32 @@
-import urlparse
+try:
+    import urlparse
+except ImportError:
+    import urllib.parse as urlparse
 import re
 import os
 
 __version__ = '0.1.3'
 
-def parse_environ(name, **default_vals):
+
+def parse_environ(name, **defaults):
     """
     same as parse() but you pass in an environment variable name that will be used
     to fetch the dsn
 
     name -- string -- the environment variable name that contains the dsn to parse
-    **default_vals -- dict -- any values you want to have defaults for if they aren't in the dsn
+    **defaults -- dict -- any values you want to have defaults for if they aren't in the dsn
     return -- ParseResult() tuple
     """
-    return parse(os.environ[name], **default_vals)
+    return parse(os.environ[name], **defaults)
 
-def parse(dsn, **default_vals):
+def parse(dsn, **defaults):
     """
     parse a dsn to parts similar to parseurl
 
     this is a nuts function that can serve as a good basis to parsing a custom dsn
 
     dsn -- string -- the dsn to parse
-    **default_vals -- dict -- any values you want to have defaults for if they aren't in the dsn
+    **defaults -- dict -- any values you want to have defaults for if they aren't in the dsn
     return -- ParseResult() tuple
     """
     assert re.match("^\S+://\S+", dsn), "{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn)
@@ -35,7 +39,7 @@ def parse(dsn, **default_vals):
     # parse the query into options
     options = {}
     if url.query:
-        for k, kv in urlparse.parse_qs(url.query, True, True).iteritems():
+        for k, kv in urlparse.parse_qs(url.query, True, True).items():
             if len(kv) > 1:
                 options[k] = kv
             else:
@@ -53,7 +57,7 @@ def parse(dsn, **default_vals):
         port=url.port,
         query_str=url.query,
     )
-    for k, v in default_vals.iteritems():
+    for k, v in defaults.items():
         r.setdefault(k, v)
 
     return r
@@ -84,7 +88,7 @@ class ParseResult(object):
         anchor -- same as fragment, just an alternative name
     """
     def __init__(self, **kwargs):
-        for k, v in kwargs.iteritems():
+        for k, v in kwargs.items():
             setattr(self, k, v)
 
     def __iter__(self):
@@ -129,7 +133,7 @@ class ParseResult(object):
     @property
     def paths(self):
         """the path attribute split by /"""
-        return filter(None, self.path.split('/'))
+        return list(filter(None, self.path.split('/')))
 
     @property
     def host(self):
@@ -174,4 +178,3 @@ class ParseResult(object):
             self.query_str,
             self.fragment,
         ))
-
