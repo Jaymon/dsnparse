@@ -1,3 +1,5 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals, division, print_function, absolute_import
 try:
     import urlparse
 except ImportError:
@@ -6,7 +8,7 @@ import re
 import os
 
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 
 def parse_environ(name, **defaults):
@@ -14,11 +16,54 @@ def parse_environ(name, **defaults):
     same as parse() but you pass in an environment variable name that will be used
     to fetch the dsn
 
-    name -- string -- the environment variable name that contains the dsn to parse
-    **defaults -- dict -- any values you want to have defaults for if they aren't in the dsn
-    return -- ParseResult() tuple
+    :param name: string, the environment variable name that contains the dsn to parse
+    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :returns: ParseResult() tuple
     """
     return parse(os.environ[name], **defaults)
+
+
+def parse_environs(name, **defaults):
+    """
+    same as parse_environ() but will also check name_1, name_2, ..., name_N and
+    return all the found dsn strings from the environment
+
+    this will look for name, and name_N (where N is 1 through infinity) in the environment,
+    if it finds them, it will assume they are dsn urls and will parse them. 
+
+    The num checks (eg PROM_DSN_1, PROM_DSN_2) go in order, so you can't do PROM_DSN_1, PROM_DSN_3,
+    because it will fail on _2 and move on, so make sure your num dsns are in order (eg, 1, 2, 3, ...)
+
+    example --
+        export DSN_1=some.Interface://host:port/dbname#i1
+        export DSN_2=some.Interface://host2:port/dbname2#i2
+        $ python
+        >>> import dsnparse
+        >>> print dsnparse.parse_environs('DSN') # prints list with 2 parsed dsn objects
+
+    :param dsn_env_name: string, the name of the environment variables, _1, ... will be appended
+    :returns: list all the found dsn strings in the environment with the given name prefix
+    """
+    ret = []
+    if name in os.environ:
+        ret.append(parse_environ(os.environ[dsn_env_name], **defaults))
+
+    # now try importing _1 -> _N dsns
+    increment_name = lambda name, num: '{}_{}'.format(name, num)
+    dsn_num = 0 if increment_name(dsn_env_name, 0) in os.environ else 1
+    dsn_env_num_name = increment_name(dsn_env_name, dsn_num)
+    if dsn_env_num_name in os.environ:
+        try:
+            while True:
+                ret.append(parse_environ(os.environ[dsn_env_num_name], **defaults))
+                dsn_num += 1
+                dsn_env_num_name = increment_name(dsn_env_name, dsn_num)
+
+        except KeyError:
+            pass
+
+    return ret
+
 
 def parse(dsn, **defaults):
     """
@@ -26,16 +71,36 @@ def parse(dsn, **defaults):
 
     this is a nuts function that can serve as a good basis to parsing a custom dsn
 
-    dsn -- string -- the dsn to parse
-    **defaults -- dict -- any values you want to have defaults for if they aren't in the dsn
-    return -- ParseResult() tuple
+    :param dsn: string, the dsn to parse
+    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :returns: ParseResult() tuple
     """
-    assert re.match("^\S+://\S+", dsn), "{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn)
+    if not re.match("^\S+://\S+", dsn):
+        raise ValueError("{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn))
 
     first_colon = dsn.find(':')
     scheme = dsn[0:first_colon]
     dsn_url = dsn[first_colon+1:]
     url = urlparse.urlparse(dsn_url)
+
+    hostname = url.hostname
+    path = url.path
+
+    if url.netloc == ":memory:":
+        # the special :memory: signifier is used in SQLite to define a fully in
+        # memory database, I think it makes sense to support it since dsnparse is all
+        # about making it easy to parse *any* dsn
+        path = url.netloc
+        hostname = None
+        port = None
+
+    else:
+        # compensate for relative path
+        if url.hostname == "." or url.hostname == "..":
+            path = "".join([hostname, path])
+            hostname = None
+
+        port = url.port
 
     # parse the query into options
     options = {}
@@ -48,20 +113,21 @@ def parse(dsn, **defaults):
 
     r = ParseResult(
         scheme=scheme,
-        hostname=url.hostname,
-        path=url.path,
+        hostname=hostname,
+        path=path,
         params=url.params,
         query=options,
         fragment=url.fragment,
         username=url.username,
         password=url.password,
-        port=url.port,
+        port=port,
         query_str=url.query,
     )
     for k, v in defaults.items():
         r.setdefault(k, v)
 
     return r
+
 
 class ParseResult(object):
     """

@@ -1,9 +1,43 @@
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals, division, print_function, absolute_import
 from unittest import TestCase, main
 import os
 
 import dsnparse
 
+
 class DsnParseTest(TestCase):
+    def test_parse_memory(self):
+        dsn = 'scheme.Foo://:memory:?opt=val'
+        r = dsnparse.parse(dsn)
+        self.assertIsNone(r.hostname)
+        self.assertIsNone(r.port)
+        self.assertEqual(':memory:', r.path)
+
+    def test_parse_crazy_path(self):
+        dsn = 'scheme.Foo://../../bar/che.db'
+        r = dsnparse.parse(dsn)
+        self.assertIsNone(r.hostname)
+        self.assertEqual('../../bar/che.db', r.path)
+
+    def test_parse_rel_path_2(self):
+        dsn = 'scheme.Foo://../bar/che.db'
+        r = dsnparse.parse(dsn)
+        self.assertIsNone(r.hostname)
+        self.assertEqual('../bar/che.db', r.path)
+
+    def test_parse_rel_path(self):
+        dsn = 'scheme.Foo://./bar/che.db'
+        r = dsnparse.parse(dsn)
+        self.assertIsNone(r.hostname)
+        self.assertEqual('./bar/che.db', r.path)
+
+    def test_parse_abs_path(self):
+        dsn = 'scheme.Foo:///bar/che.db'
+        r = dsnparse.parse(dsn)
+        self.assertEqual('scheme.Foo', r.scheme)
+        self.assertEqual('/bar/che.db', r.path)
+
     def test_parse(self):
         tests = [
             (
@@ -95,7 +129,7 @@ class DsnParseTest(TestCase):
             for k, v in test_out.items():
                 self.assertEqual(v, getattr(r, k))
 
-        with self.assertRaises(AssertionError):
+        with self.assertRaises(ValueError):
             r = dsnparse.parse('//host.com:1234')
 
     def test_geturl(self):
