@@ -8,7 +8,7 @@ import re
 import os
 
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 
 def parse_environ(name, **defaults):
@@ -46,18 +46,18 @@ def parse_environs(name, **defaults):
     """
     ret = []
     if name in os.environ:
-        ret.append(parse_environ(os.environ[dsn_env_name], **defaults))
+        ret.append(parse_environ(name, **defaults))
 
     # now try importing _1 -> _N dsns
     increment_name = lambda name, num: '{}_{}'.format(name, num)
-    dsn_num = 0 if increment_name(dsn_env_name, 0) in os.environ else 1
-    dsn_env_num_name = increment_name(dsn_env_name, dsn_num)
+    dsn_num = 0 if increment_name(name, 0) in os.environ else 1
+    dsn_env_num_name = increment_name(name, dsn_num)
     if dsn_env_num_name in os.environ:
         try:
             while True:
-                ret.append(parse_environ(os.environ[dsn_env_num_name], **defaults))
+                ret.append(parse_environ(dsn_env_num_name, **defaults))
                 dsn_num += 1
-                dsn_env_num_name = increment_name(dsn_env_name, dsn_num)
+                dsn_env_num_name = increment_name(name, dsn_num)
 
         except KeyError:
             pass
