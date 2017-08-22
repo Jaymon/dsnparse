@@ -8,7 +8,7 @@ import re
 import os
 
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
 
 
 class ParseResult(object):
@@ -36,7 +36,65 @@ class ParseResult(object):
         fragment
         anchor -- same as fragment, just an alternative name
     """
-    def __init__(self, **kwargs):
+    @classmethod
+    def parse(cls, dsn, **defaults):
+        if not re.match("^\S+://\S+", dsn):
+            raise ValueError("{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn))
+
+        first_colon = dsn.find(':')
+        scheme = dsn[0:first_colon]
+        dsn_url = dsn[first_colon+1:]
+        url = urlparse.urlparse(dsn_url)
+
+        hostname = url.hostname
+        path = url.path
+
+        if url.netloc == ":memory:":
+            # the special :memory: signifier is used in SQLite to define a fully in
+            # memory database, I think it makes sense to support it since dsnparse is all
+            # about making it easy to parse *any* dsn
+            path = url.netloc
+            hostname = None
+            port = None
+
+        else:
+            # compensate for relative path
+            if url.hostname == "." or url.hostname == "..":
+                path = "".join([hostname, path])
+                hostname = None
+
+            port = url.port
+
+        # parse the query into options
+        options = {}
+        if url.query:
+            for k, kv in urlparse.parse_qs(url.query, True, True).items():
+                if len(kv) > 1:
+                    options[k] = kv
+                else:
+                    options[k] = kv[0]
+
+        ret = dict(
+            dsn=dsn,
+            scheme=scheme,
+            hostname=hostname,
+            path=path,
+            params=url.params,
+            query=options,
+            fragment=url.fragment,
+            username=url.username,
+            password=url.password,
+            port=port,
+            query_str=url.query,
+        )
+        for k, v in defaults.items():
+            if not ret.get(k, None):
+                ret[k] = v
+
+        return ret
+
+    def __init__(self, dsn, **defaults):
+        kwargs = self.parse(dsn, **defaults)
         for k, v in kwargs.items():
             setattr(self, k, v)
 
@@ -193,61 +251,9 @@ def parse(dsn, parse_class=ParseResult, **defaults):
     :param dsn: string, the dsn to parse
     :param parse_class: ParseResult, the class that will be used to hold parsed values
     :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
-    :returns: ParseResult() tuple
+    :returns: ParseResult() tuple-like instance
     """
-    if not re.match("^\S+://\S+", dsn):
-        raise ValueError("{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn))
-
-    first_colon = dsn.find(':')
-    scheme = dsn[0:first_colon]
-    dsn_url = dsn[first_colon+1:]
-    url = urlparse.urlparse(dsn_url)
-
-    hostname = url.hostname
-    path = url.path
-
-    if url.netloc == ":memory:":
-        # the special :memory: signifier is used in SQLite to define a fully in
-        # memory database, I think it makes sense to support it since dsnparse is all
-        # about making it easy to parse *any* dsn
-        path = url.netloc
-        hostname = None
-        port = None
-
-    else:
-        # compensate for relative path
-        if url.hostname == "." or url.hostname == "..":
-            path = "".join([hostname, path])
-            hostname = None
-
-        port = url.port
-
-    # parse the query into options
-    options = {}
-    if url.query:
-        for k, kv in urlparse.parse_qs(url.query, True, True).items():
-            if len(kv) > 1:
-                options[k] = kv
-            else:
-                options[k] = kv[0]
-
-    r = parse_class(
-        dsn=dsn,
-        scheme=scheme,
-        hostname=hostname,
-        path=path,
-        params=url.params,
-        query=options,
-        fragment=url.fragment,
-        username=url.username,
-        password=url.password,
-        port=port,
-        query_str=url.query,
-    )
-    for k, v in defaults.items():
-        r.setdefault(k, v)
-
+    r = parse_class(dsn, **defaults)
     return r
-
 
 
