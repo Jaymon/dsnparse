@@ -8,125 +8,7 @@ import re
 import os
 
 
-__version__ = '0.1.6'
-
-
-def parse_environ(name, **defaults):
-    """
-    same as parse() but you pass in an environment variable name that will be used
-    to fetch the dsn
-
-    :param name: string, the environment variable name that contains the dsn to parse
-    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
-    :returns: ParseResult() tuple
-    """
-    return parse(os.environ[name], **defaults)
-
-
-def parse_environs(name, **defaults):
-    """
-    same as parse_environ() but will also check name_1, name_2, ..., name_N and
-    return all the found dsn strings from the environment
-
-    this will look for name, and name_N (where N is 1 through infinity) in the environment,
-    if it finds them, it will assume they are dsn urls and will parse them. 
-
-    The num checks (eg PROM_DSN_1, PROM_DSN_2) go in order, so you can't do PROM_DSN_1, PROM_DSN_3,
-    because it will fail on _2 and move on, so make sure your num dsns are in order (eg, 1, 2, 3, ...)
-
-    example --
-        export DSN_1=some.Interface://host:port/dbname#i1
-        export DSN_2=some.Interface://host2:port/dbname2#i2
-        $ python
-        >>> import dsnparse
-        >>> print dsnparse.parse_environs('DSN') # prints list with 2 parsed dsn objects
-
-    :param dsn_env_name: string, the name of the environment variables, _1, ... will be appended
-    :returns: list all the found dsn strings in the environment with the given name prefix
-    """
-    ret = []
-    if name in os.environ:
-        ret.append(parse_environ(name, **defaults))
-
-    # now try importing _1 -> _N dsns
-    increment_name = lambda name, num: '{}_{}'.format(name, num)
-    dsn_num = 0 if increment_name(name, 0) in os.environ else 1
-    dsn_env_num_name = increment_name(name, dsn_num)
-    if dsn_env_num_name in os.environ:
-        try:
-            while True:
-                ret.append(parse_environ(dsn_env_num_name, **defaults))
-                dsn_num += 1
-                dsn_env_num_name = increment_name(name, dsn_num)
-
-        except KeyError:
-            pass
-
-    return ret
-
-
-def parse(dsn, **defaults):
-    """
-    parse a dsn to parts similar to parseurl
-
-    this is a nuts function that can serve as a good basis to parsing a custom dsn
-
-    :param dsn: string, the dsn to parse
-    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
-    :returns: ParseResult() tuple
-    """
-    if not re.match("^\S+://\S+", dsn):
-        raise ValueError("{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn))
-
-    first_colon = dsn.find(':')
-    scheme = dsn[0:first_colon]
-    dsn_url = dsn[first_colon+1:]
-    url = urlparse.urlparse(dsn_url)
-
-    hostname = url.hostname
-    path = url.path
-
-    if url.netloc == ":memory:":
-        # the special :memory: signifier is used in SQLite to define a fully in
-        # memory database, I think it makes sense to support it since dsnparse is all
-        # about making it easy to parse *any* dsn
-        path = url.netloc
-        hostname = None
-        port = None
-
-    else:
-        # compensate for relative path
-        if url.hostname == "." or url.hostname == "..":
-            path = "".join([hostname, path])
-            hostname = None
-
-        port = url.port
-
-    # parse the query into options
-    options = {}
-    if url.query:
-        for k, kv in urlparse.parse_qs(url.query, True, True).items():
-            if len(kv) > 1:
-                options[k] = kv
-            else:
-                options[k] = kv[0]
-
-    r = ParseResult(
-        scheme=scheme,
-        hostname=hostname,
-        path=path,
-        params=url.params,
-        query=options,
-        fragment=url.fragment,
-        username=url.username,
-        password=url.password,
-        port=port,
-        query_str=url.query,
-    )
-    for k, v in defaults.items():
-        r.setdefault(k, v)
-
-    return r
+__version__ = '0.1.7'
 
 
 class ParseResult(object):
@@ -227,10 +109,11 @@ class ParseResult(object):
 
         this is different than dict's setdefault because it will set default either
         if the key doesn't exist, or if the value at the key evaluates to False, so
-        an empty string or a None will value will be updated
+        an empty string or a None value will also be updated
 
-        key -- string -- the attribute to update
-        val -- mixed -- the attributes new value if key has a current value that evaluates to False
+        :param key: string, the attribute to update
+        :param val: mixed, the attributes new value if key has a current value
+            that evaluates to False
         """
         if not getattr(self, key, None):
             setattr(self, key, val)
@@ -245,3 +128,126 @@ class ParseResult(object):
             self.query_str,
             self.fragment,
         ))
+
+
+def parse_environ(name, parse_class=ParseResult, **defaults):
+    """
+    same as parse() but you pass in an environment variable name that will be used
+    to fetch the dsn
+
+    :param name: string, the environment variable name that contains the dsn to parse
+    :param parse_class: ParseResult, the class that will be used to hold parsed values
+    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :returns: ParseResult() tuple
+    """
+    return parse(os.environ[name], parse_class, **defaults)
+
+
+def parse_environs(name, parse_class=ParseResult, **defaults):
+    """
+    same as parse_environ() but will also check name_1, name_2, ..., name_N and
+    return all the found dsn strings from the environment
+
+    this will look for name, and name_N (where N is 1 through infinity) in the environment,
+    if it finds them, it will assume they are dsn urls and will parse them. 
+
+    The num checks (eg PROM_DSN_1, PROM_DSN_2) go in order, so you can't do PROM_DSN_1, PROM_DSN_3,
+    because it will fail on _2 and move on, so make sure your num dsns are in order (eg, 1, 2, 3, ...)
+
+    example --
+        export DSN_1=some.Interface://host:port/dbname#i1
+        export DSN_2=some.Interface://host2:port/dbname2#i2
+        $ python
+        >>> import dsnparse
+        >>> print dsnparse.parse_environs('DSN') # prints list with 2 parsed dsn objects
+
+    :param dsn_env_name: string, the name of the environment variables, _1, ... will be appended
+    :param parse_class: ParseResult, the class that will be used to hold parsed values
+    :returns: list all the found dsn strings in the environment with the given name prefix
+    """
+    ret = []
+    if name in os.environ:
+        ret.append(parse_environ(name, parse_class, **defaults))
+
+    # now try importing _1 -> _N dsns
+    increment_name = lambda name, num: '{}_{}'.format(name, num)
+    dsn_num = 0 if increment_name(name, 0) in os.environ else 1
+    dsn_env_num_name = increment_name(name, dsn_num)
+    if dsn_env_num_name in os.environ:
+        try:
+            while True:
+                ret.append(parse_environ(dsn_env_num_name, parse_class, **defaults))
+                dsn_num += 1
+                dsn_env_num_name = increment_name(name, dsn_num)
+
+        except KeyError:
+            pass
+
+    return ret
+
+
+def parse(dsn, parse_class=ParseResult, **defaults):
+    """
+    parse a dsn to parts similar to parseurl
+
+    :param dsn: string, the dsn to parse
+    :param parse_class: ParseResult, the class that will be used to hold parsed values
+    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :returns: ParseResult() tuple
+    """
+    if not re.match("^\S+://\S+", dsn):
+        raise ValueError("{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn))
+
+    first_colon = dsn.find(':')
+    scheme = dsn[0:first_colon]
+    dsn_url = dsn[first_colon+1:]
+    url = urlparse.urlparse(dsn_url)
+
+    hostname = url.hostname
+    path = url.path
+
+    if url.netloc == ":memory:":
+        # the special :memory: signifier is used in SQLite to define a fully in
+        # memory database, I think it makes sense to support it since dsnparse is all
+        # about making it easy to parse *any* dsn
+        path = url.netloc
+        hostname = None
+        port = None
+
+    else:
+        # compensate for relative path
+        if url.hostname == "." or url.hostname == "..":
+            path = "".join([hostname, path])
+            hostname = None
+
+        port = url.port
+
+    # parse the query into options
+    options = {}
+    if url.query:
+        for k, kv in urlparse.parse_qs(url.query, True, True).items():
+            if len(kv) > 1:
+                options[k] = kv
+            else:
+                options[k] = kv[0]
+
+    r = parse_class(
+        dsn=dsn,
+        scheme=scheme,
+        hostname=hostname,
+        path=path,
+        params=url.params,
+        query=options,
+        fragment=url.fragment,
+        username=url.username,
+        password=url.password,
+        port=port,
+        query_str=url.query,
+    )
+    for k, v in defaults.items():
+        r.setdefault(k, v)
+
+    return r
+
+
+

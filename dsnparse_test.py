@@ -38,6 +38,14 @@ class DsnParseTest(TestCase):
         self.assertEqual('scheme.Foo', r.scheme)
         self.assertEqual('/bar/che.db', r.path)
 
+    def test_parse_custom_class(self):
+        class CustomParseResult(dsnparse.ParseResult):
+            pass
+
+        dsn = 'scheme://user:pass@host:1234/bar/che?option1=opt_val1#anchor'
+        r = dsnparse.parse(dsn, parse_class=CustomParseResult)
+        self.assertTrue(isinstance(r, CustomParseResult))
+
     def test_parse(self):
         tests = [
             (
