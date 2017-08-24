@@ -36,13 +36,35 @@ r = dsnparse.parse_environ('ENVIRONMENT_VARIABLE_NAME')
 
 I tried to keep the interface very similar to `urlparse` so it will feel familiar to use.
 
+## Example
+
+By default, `dsnparse.parse(dsn)` returns a `ParseResult` instance, but that can be customized:
+
+```python
+import dsnparse
+
+class MyResult(dsnparse.ParseResult):
+    @classmethod
+    def parse(cls, dsn, **defaults):
+        d = super(MyResult, cls).parse(dsn, **defaults)
+        # d is a dict and you can customize its keys/values here
+        d["interface"] = d.pop("scheme")
+        return d
+
+dsn = "Interface://testuser:testpw@localhost:1234/testdb"
+r = dsnparse.parse(dsn, parse_class=MyResult)
+print isinstance(r, MyResult) # True
+print r.interface # Interface
+```
+
+
 ## Install
 
 Use pip:
 
     pip install dsnparse
 
-or use github:
+or use pip with github:
 
     pip install git+https://github.com/Jaymon/dsnparse#egg=dsnparse
 
