@@ -68,6 +68,3 @@ or use pip with github:
 
     pip install git+https://github.com/Jaymon/dsnparse#egg=dsnparse
 
-## License
-
-MIT
