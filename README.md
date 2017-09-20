@@ -20,12 +20,12 @@ import dsnparse
 dsn = "prom.interface.postgres.Interface://testuser:testpw@localhost:1234/testdb"
 r = dsnparse.parse(dsn)
 
-print r.scheme # prom.interface.postgres.Interface
-print r.username # testuser
-print r.password # testpw
-print r.host # localhost
-print r.hostloc # localhost:1234
-print r.paths # ['testdb']
+print(r.scheme) # prom.interface.postgres.Interface
+print(r.username) # testuser
+print(r.password) # testpw
+print(r.host) # localhost
+print(r.hostloc) # localhost:1234
+print(r.paths) # ['testdb']
 ```
 
 Also, dsnparse can easily use environment variables:
@@ -53,8 +53,8 @@ class MyResult(dsnparse.ParseResult):
 
 dsn = "Interface://testuser:testpw@localhost:1234/testdb"
 r = dsnparse.parse(dsn, parse_class=MyResult)
-print isinstance(r, MyResult) # True
-print r.interface # Interface
+print(isinstance(r, MyResult)) # True
+print(r.interface) # Interface
 ```
 
 

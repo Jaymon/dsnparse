@@ -5,16 +5,22 @@
 from setuptools import setup
 import re
 import os
+from codecs import open
 
 
 name = 'dsnparse'
-with open("{}.py".format(name), 'rU') as f:
+with open("{}.py".format(name), encoding='utf-8') as f:
     version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", f.read(), flags=re.I | re.M).group(1)
+
+with open('README.rst', encoding='utf-8') as f:
+    long_description = f.read()
+
 
 setup(
     name=name,
     version=version,
     description='parse dsn urls',
+    long_description=long_description,
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
     url='http://github.com/Jaymon/{}'.format(name),
