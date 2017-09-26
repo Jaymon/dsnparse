@@ -23,7 +23,7 @@ setup(
     long_description=long_description,
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
-    url='http://github.com/Jaymon/{}'.format(name),
+    url='http://github.com/Jaymon/{name}'.format(name=name),
     py_modules=[name],
     license="MIT",
     classifiers=[ # https://pypi.python.org/pypi?:action=list_classifiers
