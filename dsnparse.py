@@ -39,7 +39,7 @@ class ParseResult(object):
     @classmethod
     def parse(cls, dsn, **defaults):
         if not re.match("^\S+://\S+", dsn):
-            raise ValueError("{} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn))
+            raise ValueError("{dsn} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn=dsn))
 
         first_colon = dsn.find(':')
         scheme = dsn[0:first_colon]
@@ -131,10 +131,10 @@ class ParseResult(object):
             prefix = '@'
 
         if self.password:
-            s += ":{}".format(self.password)
+            s += ":{password}".format(password=self.password)
             prefix = '@'
 
-        s += "{}{}".format(prefix, self.hostloc)
+        s += "{prefix}{hostloc}".format(prefix=prefix, hostloc=self.hostloc)
         return s
 
     @property
@@ -152,7 +152,7 @@ class ParseResult(object):
         """return host:port"""
         hostloc = self.hostname
         if self.port:
-            hostloc = '{}:{}'.format(hostloc, self.port)
+            hostloc = '{hostloc}:{port}'.format(hostloc=hostloc, port=self.port)
 
         return hostloc
 
@@ -228,7 +228,7 @@ def parse_environs(name, parse_class=ParseResult, **defaults):
         ret.append(parse_environ(name, parse_class, **defaults))
 
     # now try importing _1 -> _N dsns
-    increment_name = lambda name, num: '{}_{}'.format(name, num)
+    increment_name = lambda name, num: '{name}_{num}'.format(name=name, num=num)
     dsn_num = 0 if increment_name(name, 0) in os.environ else 1
     dsn_env_num_name = increment_name(name, dsn_num)
     if dsn_env_num_name in os.environ:

@@ -157,7 +157,7 @@ class DsnParseTest(TestCase):
         rs = dsnparse.parse_environs('ENVIRONS_DSN')
         self.assertEqual(3, len(rs))
         for x in range(1, 4):
-            self.assertEqual(os.environ['ENVIRONS_DSN_{}'.format(x)], rs[x - 1].geturl())
+            self.assertEqual(os.environ['ENVIRONS_DSN_{x}'.format(x=x)], rs[x - 1].geturl())
 
     def test_unpack(self):
         dsn = 'scheme://username:password@host:1234/foo'
