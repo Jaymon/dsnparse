@@ -2,4 +2,7 @@
 *.tmproj
 *.pyc
 .vagrant
-
+*.egg-info/
+.tox/
+build/
+dist/

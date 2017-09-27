@@ -12,7 +12,7 @@ name = 'dsnparse'
 with open("{name}.py".format(name=name), encoding='utf-8') as f:
     version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", f.read(), flags=re.I | re.M).group(1)
 
-with open('README.md', encoding='utf-8') as f:
+with open('README.rst', encoding='utf-8') as f:
     long_description = f.read()
 
 
