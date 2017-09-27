@@ -6,3 +6,4 @@
 .tox/
 build/
 dist/
+.python-version
