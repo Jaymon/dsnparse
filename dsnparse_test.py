@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
-from unittest import TestCase, main
+import sys
 import os
+if sys.version_info[:2] == (2, 6):
+    from unittest2 import TestCase, main
+else:
+    from unittest import TestCase, main
 
 import dsnparse
 
@@ -201,4 +205,3 @@ class DsnParseTest(TestCase):
 
 if __name__ == '__main__':
     main()
-
