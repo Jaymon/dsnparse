@@ -1,13 +1,13 @@
-doc:
+README.rst: README.md
 	pandoc --from=markdown --to=rst --output=README.rst README.md
 
-test: doc
+test: README.rst
 	python dsnparse_test.py
 
-tox: doc
+tox: README.rst
 	tox
 
-package:
+package: README.rst
 	python setup.py bdist_wheel --universal
 
 clean:

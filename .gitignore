@@ -6,4 +6,6 @@
 .tox/
 build/
 dist/
+.eggs/
 .python-version
+README.rst
