@@ -9,7 +9,7 @@ from codecs import open
 
 
 name = 'dsnparse'
-with open("{}.py".format(name), encoding='utf-8') as f:
+with open("{name}.py".format(name=name), encoding='utf-8') as f:
     version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", f.read(), flags=re.I | re.M).group(1)
 
 with open('README.rst', encoding='utf-8') as f:
@@ -23,7 +23,7 @@ setup(
     long_description=long_description,
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
-    url='http://github.com/Jaymon/{}'.format(name),
+    url='http://github.com/Jaymon/{name}'.format(name=name),
     py_modules=[name],
     license="MIT",
     classifiers=[ # https://pypi.python.org/pypi?:action=list_classifiers
@@ -32,6 +32,7 @@ setup(
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT License',
         'Operating System :: OS Independent',
+        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3.0',
         'Programming Language :: Python :: 3.1',
@@ -40,5 +41,5 @@ setup(
         'Programming Language :: Python :: 3.4',
         'Programming Language :: Python :: 3.5',
     ],
-    test_suite = "dsnparse_test",
+    test_suite="dsnparse_test",
 )

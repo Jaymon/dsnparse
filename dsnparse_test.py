@@ -1,7 +1,11 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
-from unittest import TestCase, main
+import sys
 import os
+if sys.version_info[:2] == (2, 6):
+    from unittest2 import TestCase, main
+else:
+    from unittest import TestCase, main
 
 import dsnparse
 
@@ -157,7 +161,7 @@ class DsnParseTest(TestCase):
         rs = dsnparse.parse_environs('ENVIRONS_DSN')
         self.assertEqual(3, len(rs))
         for x in range(1, 4):
-            self.assertEqual(os.environ['ENVIRONS_DSN_{}'.format(x)], rs[x - 1].geturl())
+            self.assertEqual(os.environ['ENVIRONS_DSN_{x}'.format(x=x)], rs[x - 1].geturl())
 
     def test_unpack(self):
         dsn = 'scheme://username:password@host:1234/foo'
@@ -201,4 +205,3 @@ class DsnParseTest(TestCase):
 
 if __name__ == '__main__':
     main()
-
