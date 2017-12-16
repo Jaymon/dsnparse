@@ -8,7 +8,7 @@ import re
 import os
 
 
-__version__ = '0.1.10'
+__version__ = '0.1.11'
 
 
 class ParseResult(object):
@@ -64,6 +64,13 @@ class ParseResult(object):
                 hostname = None
 
             port = url.port
+
+        if hostname is None:
+            database = path
+        else:
+            # we have a host, which means the dsn is in the form: hostname/database most
+            # likely, so let's get rid of the slashes when setting the db
+            database = path.strip("/")
 
         # parse the query into options
         options = {}
@@ -148,6 +155,19 @@ class ParseResult(object):
         return self.hostname
 
     @property
+    def user(self):
+        """alias for username to match psycopg2"""
+        return self.username
+
+    @property
+    def secret(self):
+        """alias for password to match postgres dsn
+
+        https://www.postgresql.org/docs/9.2/static/libpq-connect.html#LIBPQ-CONNSTRING
+        """
+        return self.password
+
+    @property
     def hostloc(self):
         """return host:port"""
         hostloc = self.hostname
@@ -160,6 +180,19 @@ class ParseResult(object):
     def anchor(self):
         """alternative name for the fragment"""
         return self.fragment
+
+    @property
+    def database(self):
+        # sqlite uses database in its connect method https://docs.python.org/3.6/library/sqlite3.html
+        if self.hostname is None:
+            database = self.path
+        else:
+            # we have a host, which means the dsn is in the form: hostname/database most
+            # likely, so let's get rid of the slashes when setting the db
+            database = self.path.strip("/")
+        return database
+    # psycopg2 uses dbname: http://initd.org/psycopg/docs/module.html#psycopg2.connect
+    dbname = database
 
     def setdefault(self, key, val):
         """

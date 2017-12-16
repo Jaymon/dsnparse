@@ -11,6 +11,21 @@ import dsnparse
 
 
 class DsnParseTest(TestCase):
+    def test_database(self):
+        dsn = "sqlite:///the/path"
+        r = dsnparse.parse(dsn)
+        self.assertEqual("/the/path", r.database)
+        self.assertEqual("/the/path", r.dbname)
+
+        dsn = "postgresql://user:pass@host:1234/dbname"
+        r = dsnparse.parse(dsn)
+        self.assertEqual("dbname", r.database)
+        self.assertEqual("dbname", r.dbname)
+
+        dsn = "postgresql://user:pass@host:1234/dbname/"
+        r = dsnparse.parse(dsn)
+        self.assertEqual("dbname", r.dbname)
+
     def test_parse_memory(self):
         dsn = 'scheme.Foo://:memory:?opt=val'
         r = dsnparse.parse(dsn)
