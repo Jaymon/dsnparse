@@ -24,6 +24,7 @@ print(r.scheme) # prom.interface.postgres.Interface
 print(r.username) # testuser
 print(r.password) # testpw
 print(r.host) # localhost
+print(r.port) # 1234
 print(r.hostloc) # localhost:1234
 print(r.paths) # ['testdb']
 ```
