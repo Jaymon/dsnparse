@@ -9,24 +9,40 @@ from codecs import open
 
 
 name = 'dsnparse'
-with open("{name}.py".format(name=name), encoding='utf-8') as f:
-    version = re.search("^__version__\s*=\s*[\'\"]([^\'\"]+)", f.read(), flags=re.I | re.M).group(1)
 
-long_description = ""
-if os.path.isfile('README.rst'):
-    with open('README.rst', encoding='utf-8') as f:
-        long_description = f.read()
+kwargs = {"name": name}
+
+def read(path):
+    if os.path.isfile(path):
+        with open(path, encoding='utf-8') as f:
+            return f.read()
+    return ""
+
+
+vpath = os.path.join(name, "__init__.py")
+if os.path.isfile(vpath):
+    kwargs["packages"] = find_packages(exclude=["tests", "tests.*", "*_test*", "examples"])
+else:
+    vpath = "{}.py".format(name)
+    kwargs["py_modules"] = [name]
+kwargs["version"] = re.search(r"^__version__\s*=\s*[\'\"]([^\'\"]+)", read(vpath), flags=re.I | re.M).group(1)
+
+
+# https://pypi.org/help/#description-content-type
+kwargs["long_description"] = read('README.md')
+kwargs["long_description_content_type"] = "text/markdown"
+
+kwargs["tests_require"] = []
+kwargs["install_requires"] = []
 
 
 setup(
-    name=name,
     version=version,
     description='parse dsn urls',
-    long_description=long_description,
+    keywords="dsn url parser database configuration",
     author='Jay Marcyes',
     author_email='jay@marcyes.com',
     url='http://github.com/Jaymon/{name}'.format(name=name),
-    py_modules=[name],
     license="MIT",
     classifiers=[ # https://pypi.python.org/pypi?:action=list_classifiers
         'Development Status :: 4 - Beta',
@@ -36,12 +52,8 @@ setup(
         'Operating System :: OS Independent',
         'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.0',
-        'Programming Language :: Python :: 3.1',
-        'Programming Language :: Python :: 3.2',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
+        'Programming Language :: Python :: 3',
     ],
     test_suite="dsnparse_test",
+    **kwargs
 )

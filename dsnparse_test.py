@@ -217,6 +217,12 @@ class DsnParseTest(TestCase):
         r = dsnparse.parse(dsn, port=1235)
         self.assertEqual(1235, r.port)
 
+    def test_username_password(self):
+        dsn = "scheme://foo:bar+che/baz@"
+        r = dsnparse.parse(dsn)
+        self.assertEqual("foo", r.username)
+        self.assertEqual("bar+che/baz", r.password)
+
 
 if __name__ == '__main__':
     main()

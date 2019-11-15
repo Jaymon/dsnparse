@@ -8,7 +8,7 @@ import re
 import os
 
 
-__version__ = '0.1.12'
+__version__ = '0.1.13'
 
 
 class ParseResult(object):
@@ -38,14 +38,25 @@ class ParseResult(object):
     """
     @classmethod
     def parse(cls, dsn, **defaults):
-        if not re.match("^\S+://\S+", dsn):
+        if not re.match(r"^\S+://\S+", dsn):
             raise ValueError("{dsn} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn=dsn))
 
         first_colon = dsn.find(':')
         scheme = dsn[0:first_colon]
         dsn_url = dsn[first_colon+1:]
+
+        # example.com:1000/@
+        username = password = None
+        m = re.match(r"^//([^:]*):([^@]*)@", dsn_url)
+        if m:
+            username = m.group(1)
+            password = m.group(2)
+            dsn_url = "//{}".format(dsn_url[m.end():])
+
         url = urlparse.urlparse(dsn_url)
 
+        username = url.username or username
+        password = url.password or password
         hostname = url.hostname
         path = url.path
 
@@ -89,8 +100,8 @@ class ParseResult(object):
             params=url.params,
             query=options,
             fragment=url.fragment,
-            username=url.username,
-            password=url.password,
+            username=username,
+            password=password,
             port=port,
             query_str=url.query,
         )
