@@ -37,7 +37,6 @@ kwargs["install_requires"] = []
 
 
 setup(
-    version=version,
     description='parse dsn urls',
     keywords="dsn url parser database configuration",
     author='Jay Marcyes',
