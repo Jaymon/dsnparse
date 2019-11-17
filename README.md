@@ -1,6 +1,6 @@
 # dsnparse
 
-Parse [dsn connection url strings](http://en.wikipedia.org/wiki/Data_source_name). I kept duplicating dsn parsing code for things like [prom](https://github.com/firstopinion/prom) and morp, and I realized I was going to need many more dsn urls in the future so I decided to create something a little more modular.
+Parse [dsn connection url strings](http://en.wikipedia.org/wiki/Data_source_name). Responsible for parsing dsn strings in projects like [prom](https://github.com/jaymon/prom) and [morp](https://github.com/jaymon/morp).
 
 This is a generic version of [dj-database-url](https://github.com/kennethreitz/dj-database-url).
 
@@ -37,7 +37,8 @@ r = dsnparse.parse_environ('ENVIRONMENT_VARIABLE_NAME')
 
 I tried to keep the interface very similar to `urlparse` so it will feel familiar to use.
 
-## Example
+
+## Customizing
 
 By default, `dsnparse.parse(dsn)` returns a `ParseResult` instance, but that can be customized:
 
@@ -45,12 +46,9 @@ By default, `dsnparse.parse(dsn)` returns a `ParseResult` instance, but that can
 import dsnparse
 
 class MyResult(dsnparse.ParseResult):
-    @classmethod
-    def parse(cls, dsn, **defaults):
-        d = super(MyResult, cls).parse(dsn, **defaults)
-        # d is a dict and you can customize its keys/values here
-        d["interface"] = d.pop("scheme")
-        return d
+    def configure(self):
+        # expose an interface property
+        self.interface = self.scheme
 
 dsn = "Interface://testuser:testpw@localhost:1234/testdb"
 r = dsnparse.parse(dsn, parse_class=MyResult)
@@ -67,5 +65,5 @@ Use pip:
 
 or use pip with github:
 
-    pip install git+https://github.com/Jaymon/dsnparse#egg=dsnparse
+    pip install -U "git+https://github.com/Jaymon/dsnparse#egg=dsnparse"
 

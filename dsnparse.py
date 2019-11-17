@@ -10,7 +10,7 @@ import re
 import os
 
 
-__version__ = '0.1.14'
+__version__ = '0.1.15'
 
 
 class ParseResult(object):
@@ -110,14 +110,8 @@ class ParseResult(object):
 
             port = url.port
 
-        if hostname is None:
-            database = path
-        else:
+        if hostname is not None:
             hostname = unquote(hostname)
-
-            # we have a host, which means the dsn is in the form: hostname/database most
-            # likely, so let's get rid of the slashes when setting the db
-            database = path.strip("/")
 
         options = cls.parse_query(url)
         ret = {
@@ -165,6 +159,11 @@ class ParseResult(object):
         kwargs = self.parse(dsn, **defaults)
         for k, v in kwargs.items():
             setattr(self, k, v)
+        self.configure()
+
+    def configure(self):
+        """designed to be overridden in a child class"""
+        pass
 
     def __iter__(self):
         mapping = ['scheme', 'netloc', 'path', 'params', 'query', 'fragment']
