@@ -223,6 +223,27 @@ class DsnParseTest(TestCase):
         self.assertEqual("foo", r.username)
         self.assertEqual("bar+che/baz", r.password)
 
+        dsn = "scheme://example.com/?username=foo2&password=che-baz"
+        r = dsnparse.parse(dsn)
+        self.assertEqual("foo2", r.username)
+        self.assertEqual("che-baz", r.password)
+
+        dsn = "scheme://foo3:bar3@example.com/?username=foo3&password=bar3"
+        with self.assertRaises(ValueError):
+            r = dsnparse.parse(dsn)
+
+    def test_url_encoding(self):
+        dsn = "postgresql://%2Fvar%2Flib%2Fpostgresql/dbname"
+        r = dsnparse.parse(dsn)
+        self.assertFalse("%2" in r.hostname)
+        self.assertTrue("%2" in r.netloc)
+
+    def test_options_define(self):
+        dsn = "postgresql:///dbname?host=/var/lib/postgresql"
+        r = dsnparse.parse(dsn)
+        self.assertEqual("/var/lib/postgresql", r.hostname)
+        self.assertEqual("dbname", r.database)
+
 
 if __name__ == '__main__':
     main()

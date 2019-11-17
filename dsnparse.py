@@ -2,13 +2,15 @@
 from __future__ import unicode_literals, division, print_function, absolute_import
 try:
     import urlparse
+    from urllib import unquote, quote
 except ImportError:
     import urllib.parse as urlparse
+    from urllib.parse import unquote, quote
 import re
 import os
 
 
-__version__ = '0.1.13'
+__version__ = '0.1.14'
 
 
 class ParseResult(object):
@@ -37,21 +39,53 @@ class ParseResult(object):
         anchor -- same as fragment, just an alternative name
     """
     @classmethod
-    def parse(cls, dsn, **defaults):
+    def verify(cls, dsn):
         if not re.match(r"^\S+://\S+", dsn):
             raise ValueError("{dsn} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn=dsn))
 
+    @classmethod
+    def parse_scheme(cls, dsn):
         first_colon = dsn.find(':')
         scheme = dsn[0:first_colon]
-        dsn_url = dsn[first_colon+1:]
+        dsn = dsn[first_colon+1:]
+        return scheme, dsn
 
-        # example.com:1000/@
+    @classmethod
+    def parse_credentials(cls, dsn):
+        # so urlparse doesn't support passwords with special characters /+. So
+        # I'm going to parse out the username:password with a more lenient
+        # parser, the problem is something like "example.com:1000/@" will now
+        # fail but I think it's probably far more common for a dsn to have a
+        # username/password at the beginning than not have one but have a port
+        # and @ symbol in the path
         username = password = None
-        m = re.match(r"^//([^:]*):([^@]*)@", dsn_url)
+        m = re.match(r"^//([^:]*):([^@]*)@", dsn)
         if m:
             username = m.group(1)
             password = m.group(2)
-            dsn_url = "//{}".format(dsn_url[m.end():])
+            dsn = "//{}".format(dsn[m.end():])
+
+        return username, password, dsn
+
+    @classmethod
+    def parse_query(cls, url):
+        # parse the query into options
+        options = {}
+        if url.query:
+            for k, kv in urlparse.parse_qs(url.query, True, True).items():
+                if len(kv) > 1:
+                    options[k] = kv
+                else:
+                    options[k] = kv[0]
+
+        return options
+
+    @classmethod
+    def parse(cls, dsn, **defaults):
+        cls.verify(dsn)
+
+        scheme, dsn_url = cls.parse_scheme(dsn)
+        username, password, dsn_url = cls.parse_credentials(dsn_url)
 
         url = urlparse.urlparse(dsn_url)
 
@@ -79,35 +113,51 @@ class ParseResult(object):
         if hostname is None:
             database = path
         else:
+            hostname = unquote(hostname)
+
             # we have a host, which means the dsn is in the form: hostname/database most
             # likely, so let's get rid of the slashes when setting the db
             database = path.strip("/")
 
-        # parse the query into options
-        options = {}
-        if url.query:
-            for k, kv in urlparse.parse_qs(url.query, True, True).items():
-                if len(kv) > 1:
-                    options[k] = kv
-                else:
-                    options[k] = kv[0]
+        options = cls.parse_query(url)
+        ret = {
+            "dsn": dsn,
+            "scheme": scheme,
+            "hostname": hostname,
+            "path": path,
+            "port": port,
+            "username": username,
+            "password": password,
+        }
+        ret = cls.merge(ret, url, defaults, options)
+        return ret
 
-        ret = dict(
-            dsn=dsn,
-            scheme=scheme,
-            hostname=hostname,
-            path=path,
+    @classmethod
+    def merge(cls, ret, url, defaults, options):
+        ret.update(dict(
             params=url.params,
             query=options,
             fragment=url.fragment,
-            username=username,
-            password=password,
-            port=port,
             query_str=url.query,
-        )
+        ))
+
         for k, v in defaults.items():
             if not ret.get(k, None):
                 ret[k] = v
+
+        for k in list(options.keys()):
+            if k in ret:
+                if ret[k] is None:
+                    ret[k] = options.pop(k)
+                else:
+                    raise ValueError("{} specified in query string and dsn".format(k))
+
+        for ret_k, options_k in [("hostname", "host")]:
+            if options_k in options:
+                if ret[ret_k] is None:
+                    ret[ret_k] = options.pop(options_k)
+                else:
+                    raise ValueError("{} specified in query string and dsn".format(options_k))
 
         return ret
 
@@ -181,7 +231,8 @@ class ParseResult(object):
     @property
     def hostloc(self):
         """return host:port"""
-        hostloc = self.hostname
+        hostloc = quote(self.hostname, safe="")
+        #hostloc = self.hostname
         if self.port:
             hostloc = '{hostloc}:{port}'.format(hostloc=hostloc, port=self.port)
 
