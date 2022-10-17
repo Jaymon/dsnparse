@@ -113,6 +113,12 @@ class ParseResult(object):
         if hostname is not None:
             hostname = unquote(hostname)
 
+        if username is not None:
+            username = unquote(username)
+
+        if password is not None:
+            password = unquote(password)
+
         options = cls.parse_query(url)
         ret = {
             "dsn": dsn,
