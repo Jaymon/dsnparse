@@ -1,16 +1,348 @@
 # -*- coding: utf-8 -*-
 from __future__ import unicode_literals, division, print_function, absolute_import
-try:
-    import urlparse
-    from urllib import unquote, quote
-except ImportError:
-    import urllib.parse as urlparse
-    from urllib.parse import unquote, quote
+import urllib.parse as urlparse
+from urllib.parse import unquote, quote
 import re
 import os
+import logging
 
 
-__version__ = '0.1.15'
+__version__ = '0.2.0'
+
+
+logger = logging.getLogger(__name__)
+
+
+class ConnectionString(dict):
+    """A connection string is a name=value string
+
+    :Example:
+        dsn = "name=value name2 = 'value 2'"
+        c = ConnectionString(dsn)
+        print(c.name) # value
+        print(c.name2) # value 2
+
+    https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+        In the keyword/value format, each parameter setting is in the form keyword = value,
+        with space(s) between settings. Spaces around a setting's equal sign are optional.
+        To write an empty value, or a value containing spaces, surround it with single
+        quotes, for example keyword = 'a value'. Single quotes and backslashes within
+        a value must be escaped with a backslash, i.e., \' and \\.
+    """
+    @classmethod
+    def verify(cls, dsn):
+        if re.match(r"^[a-z_][a-z0-9_-]*\s*=\s*\S", dsn, flags=re.I):
+            return True
+        return False
+
+    def __init__(self, dsn=""):
+        d = self.parse_dsn(dsn)
+        d.setdefault("query_params", {})
+        super().__init__(d)
+
+    def __getattr__(self, k):
+        try:
+            return self.__getitem__(k)
+
+        except KeyError as e:
+            raise AttributeError(k) from e
+
+    def parse_dsn(self, dsn):
+        self.dsn = dsn
+        return self.parse(dsn) if dsn else {}
+
+    def parse(self, dsn):
+        d = {}
+        chindex = 0
+
+        while chindex < len(dsn):
+            # consume until space or =
+            try:
+                name = ""
+                while re.match(r"[^\s=]", dsn[chindex]):
+                    name += dsn[chindex]
+                    chindex += 1
+
+                # move passed spaces and =
+                while re.match(r"[\s=]", dsn[chindex]):
+                    chindex += 1
+
+                # Gather value
+                value = ""
+                if dsn[chindex] == "\"" or dsn[chindex] == "'":
+                    # value is an enclosed string, so go until we find the other quote
+                    quote = dsn[chindex]
+                    chindex += 1
+                    while (dsn[chindex] != quote) or (dsn[chindex - 1] == "\\"):
+                    #while re.match(rf"(?:\\{quote})|(?:[^{quote}])", dsn[chindex]):
+                    #while re.match(rf"[^{quote}]", dsn[chindex]) and not re.match(rf"", dsn[chindex]):
+                        value += dsn[chindex]
+                        chindex += 1
+
+                    chindex += 1
+
+                else:
+                    # value isn't quoted so just go until we hit a space
+                    while re.match(r"\S", dsn[chindex]):
+                        value += dsn[chindex]
+                        chindex += 1
+
+                # find the start of the next assignment
+                while re.match(r"\s", dsn[chindex]):
+                    chindex += 1
+
+            except IndexError:
+                # ignore running out characters
+                pass
+
+            finally:
+                d[name] = value
+
+        return self.normalize_values(d)
+
+    def normalize_values(self, d):
+        if not d: return d
+
+        for k, v in d.items():
+            if isinstance(v, str):
+                if re.match(r"^\d+\.\d+$", v):
+                    d[k] = float(v)
+
+                elif re.match(r"^\d+$", v):
+                    d[k] = int(v)
+
+                elif re.match(r"^true$", v, flags=re.I):
+                    d[k] = True
+
+                elif re.match(r"^false$", v, flags=re.I):
+                    d[k] = False
+
+        return d
+
+
+class ConnectionURI(ConnectionString):
+    """
+    * https://www.ietf.org/rfc/rfc3986.txt
+    * superseded by rfc3986: https://www.ietf.org/rfc/rfc2396.txt
+    """
+    @classmethod
+    def verify(cls, dsn):
+        #if re.match(r"^\S+:", dsn):
+        if re.match(r"^[^/]+:", dsn):
+            return True
+        return False
+
+    def parse_scheme(self, dsn):
+        """
+        rfc3986 section 3.1:
+            Scheme names consist of a sequence of characters beginning with a
+            letter and followed by any combination of letters, digits, plus
+            ("+"), period ("."), or hyphen ("-").
+        """
+        scheme = ""
+        first_colon = dsn.find(":")
+        if first_colon >= 0:
+            scheme = unquote(dsn[0:first_colon])
+            dsn = dsn[first_colon+1:]
+
+        logger.debug(f"Parsed scheme {scheme}")
+        return scheme, dsn
+
+    def parse_authority(self, dsn):
+        """
+        rfc3986 section 3.2:
+            The authority component is preceded by a double slash ("//") and is
+            terminated by the next slash ("/"), question mark ("?"), or number
+            sign ("#") character, or by the end of the URI.
+        """
+        authority = ""
+        sentinal = "//"
+        if dsn.startswith(sentinal):
+            if not re.match(r"^\.+/", dsn[len(sentinal):]):
+                for ch in dsn[len(sentinal):]:
+                    if ch in set(["/", "?", "#"]):
+                        break
+
+                    authority += ch
+
+            dsn = dsn[len(authority) + len(sentinal):]
+
+        logger.debug(f"Parsed authority with {len(authority)} characters")
+        return authority, dsn
+
+    def parse_userinfo(self, authority):
+        # so urlparse doesn't support passwords with special characters /+. So
+        # I'm going to parse out the username:password with a more lenient
+        # parser, the problem is something like "example.com:1000/@" will now
+        # fail but I think it's probably far more common for a dsn to have a
+        # username/password at the beginning than not have one but have a port
+        # and @ symbol in the path
+        username = password = None
+        parts = authority.split("@", maxsplit=1)
+        if len(parts) > 1:
+            username = password = ""
+            userinfo = parts[0].split(":", maxsplit=1)
+            if userinfo[0]:
+                username = unquote(userinfo[0])
+                logger.debug(f"Parsed username {username}")
+
+            if len(userinfo) > 1:
+                if userinfo[1]:
+                    password = unquote(userinfo[1])
+                    logger.debug(f"Parsed password with {len(password)} characters")
+
+            authority = parts[1]
+
+        return username, password, authority
+
+    def parse_hosts(self, authority):
+        hosts = []
+        for hostloc in authority.split(","):
+            hostname, port = self.parse_hostloc(hostloc)
+            logger.debug(f"Parsed host {hostname} with port {port}")
+            hosts.append((hostname, port))
+        return hosts
+
+    def parse_hostloc(self, hostloc):
+        port = None
+        if re.search(r":\d+$", hostloc):
+            parts = hostloc.split(":")
+            hostname = unquote(parts[0])
+
+            if len(parts) > 1:
+                port = int(parts[1])
+
+        else:
+            hostname = unquote(hostloc)
+
+        return hostname, port
+
+    def parse_path(self, dsn):
+        """
+        rfc3986 section 3.3:
+            The path is terminated by the first question mark ("?") or number sign
+            ("#") character, or by the end of the URI.
+        """
+        path = ""
+        for ch in dsn:
+            if ch in set(["?", "#"]):
+                break
+
+            path += ch
+
+        dsn = dsn[len(path):]
+
+        logger.debug(f"Parsed path {path}")
+        return path, dsn
+
+    def parse_query(self, dsn):
+        """
+        rfc3986 section 3.4:
+            The query component is indicated by the first question mark ("?")
+            character and terminated by a number sign ("#") character or by the
+            end of the URI
+        """
+        query = ""
+        sentinal = "?"
+        if dsn.startswith(sentinal):
+            for ch in dsn[len(sentinal):]:
+                if ch in set(["#"]):
+                    break
+
+                query += ch
+
+            dsn = dsn[len(query) + len(sentinal):]
+
+        logger.debug(f"Parsed query with {len(query)} characters")
+        return query, dsn
+
+    def parse_fragment(self, dsn):
+        """
+        rfc3986 section 3.5:
+            A fragment identifier component is indicated by the presence of a number
+            sign ("#") character and terminated by the end of the URI
+        """
+        sentinal = "#"
+        if dsn.startswith(sentinal):
+            fragment = dsn[len(sentinal):]
+            logger.debug(f"Parsed fragment {fragment}")
+            return fragment
+        return ""
+
+    def parse_query_params(self, query):
+        # parse the query into options
+        options = {}
+        if query:
+            for k, kv in urlparse.parse_qs(query, True, True).items():
+                if len(kv) > 1:
+                    options[k] = kv
+
+                else:
+                    options[k] = kv[0]
+
+        logger.debug(f"Parsed query_params with {', '.join(options.keys())} keys")
+        return self.normalize_values(options)
+
+    def parse(self, dsn):
+        ret = {}
+        ret["scheme"], dsn = self.parse_scheme(dsn)
+
+        authority, dsn = self.parse_authority(dsn)
+        if authority:
+            ret["username"], ret["password"], authority = self.parse_userinfo(authority)
+            ret["hosts"] = self.parse_hosts(authority)
+            if ret["hosts"]:
+                ret["hostname"] = ret["hosts"][0][0]
+                ret["port"] = ret["hosts"][0][1]
+
+        ret["path"], dsn = self.parse_path(dsn)
+        ret["query"], dsn = self.parse_query(dsn)
+        ret["query_params"] = self.parse_query_params(ret["query"])
+        ret["fragment"] = self.parse_fragment(dsn)
+
+        return ret
+
+
+#         username, password, dsn_url = cls.parse_credentials(dsn_url)
+# 
+#         url = urlparse.urlparse(dsn_url)
+# 
+#         username = url.username or username
+#         password = url.password or password
+#         hostname = url.hostname
+#         path = url.path
+# 
+#         if url.netloc == ":memory:":
+#             # the special :memory: signifier is used in SQLite to define a fully in
+#             # memory database, I think it makes sense to support it since dsnparse is all
+#             # about making it easy to parse *any* dsn
+#             path = url.netloc
+#             hostname = None
+#             port = None
+# 
+#         else:
+#             # compensate for relative path
+#             if url.hostname == "." or url.hostname == "..":
+#                 path = "".join([hostname, path])
+#                 hostname = None
+# 
+#             port = url.port
+# 
+#         if hostname is not None:
+#             hostname = unquote(hostname)
+# 
+#         options = cls.parse_query(url)
+#         ret = {
+#             "dsn": dsn,
+#             "scheme": scheme,
+#             "hostname": hostname,
+#             "path": path,
+#             "port": port,
+#             "username": username,
+#             "password": password,
+#         }
+#         ret = cls.merge(ret, url, defaults, options)
+#         return ret
 
 
 class ParseResult(object):
@@ -38,150 +370,86 @@ class ParseResult(object):
         fragment
         anchor -- same as fragment, just an alternative name
     """
-    @classmethod
-    def verify(cls, dsn):
-        if not re.match(r"^\S+://\S+", dsn):
-            raise ValueError("{dsn} is invalid, only full dsn urls (scheme://host...) allowed".format(dsn=dsn))
 
-    @classmethod
-    def parse_scheme(cls, dsn):
-        first_colon = dsn.find(':')
-        scheme = dsn[0:first_colon]
-        dsn = dsn[first_colon+1:]
-        return scheme, dsn
+    parser_classes = [
+        ConnectionString,
+        ConnectionURI,
+    ]
 
-    @classmethod
-    def parse_credentials(cls, dsn):
-        # so urlparse doesn't support passwords with special characters /+. So
-        # I'm going to parse out the username:password with a more lenient
-        # parser, the problem is something like "example.com:1000/@" will now
-        # fail but I think it's probably far more common for a dsn to have a
-        # username/password at the beginning than not have one but have a port
-        # and @ symbol in the path
-        username = password = None
-        m = re.match(r"^//([^:]*):([^@]*)@", dsn)
-        if m:
-            username = m.group(1)
-            password = m.group(2)
-            dsn = "//{}".format(dsn[m.end():])
+#     @classmethod
+#     def parse(cls, dsn, **defaults):
+#         cls.verify(dsn)
+# 
+#         scheme, dsn_url = cls.parse_scheme(dsn)
+#         username, password, dsn_url = cls.parse_credentials(dsn_url)
+# 
+#         url = urlparse.urlparse(dsn_url)
+# 
+#         username = url.username or username
+#         password = url.password or password
+#         hostname = url.hostname
+#         path = url.path
+# 
+#         if url.netloc == ":memory:":
+#             # the special :memory: signifier is used in SQLite to define a fully in
+#             # memory database, I think it makes sense to support it since dsnparse is all
+#             # about making it easy to parse *any* dsn
+#             path = url.netloc
+#             hostname = None
+#             port = None
+# 
+#         else:
+#             # compensate for relative path
+#             if url.hostname == "." or url.hostname == "..":
+#                 path = "".join([hostname, path])
+#                 hostname = None
+# 
+#             port = url.port
+# 
+#         if hostname is not None:
+#             hostname = unquote(hostname)
+# 
+#         options = cls.parse_query(url)
+#         ret = {
+#             "dsn": dsn,
+#             "scheme": scheme,
+#             "hostname": hostname,
+#             "path": path,
+#             "port": port,
+#             "username": username,
+#             "password": password,
+#         }
+#         ret = cls.merge(ret, url, defaults, options)
+#         return ret
 
-        return username, password, dsn
-
-    @classmethod
-    def parse_query(cls, url):
-        # parse the query into options
-        options = {}
-        if url.query:
-            for k, kv in urlparse.parse_qs(url.query, True, True).items():
-                if len(kv) > 1:
-                    options[k] = kv
-                else:
-                    options[k] = kv[0]
-
-        return options
-
-    @classmethod
-    def parse(cls, dsn, **defaults):
-        cls.verify(dsn)
-
-        scheme, dsn_url = cls.parse_scheme(dsn)
-        username, password, dsn_url = cls.parse_credentials(dsn_url)
-
-        url = urlparse.urlparse(dsn_url)
-
-        username = url.username or username
-        password = url.password or password
-        hostname = url.hostname
-        path = url.path
-
-        if url.netloc == ":memory:":
-            # the special :memory: signifier is used in SQLite to define a fully in
-            # memory database, I think it makes sense to support it since dsnparse is all
-            # about making it easy to parse *any* dsn
-            path = url.netloc
-            hostname = None
-            port = None
-
-        else:
-            # compensate for relative path
-            if url.hostname == "." or url.hostname == "..":
-                path = "".join([hostname, path])
-                hostname = None
-
-            port = url.port
-
-        if hostname is not None:
-            hostname = unquote(hostname)
-
-        options = cls.parse_query(url)
-        ret = {
-            "dsn": dsn,
-            "scheme": scheme,
-            "hostname": hostname,
-            "path": path,
-            "port": port,
-            "username": username,
-            "password": password,
-        }
-        ret = cls.merge(ret, url, defaults, options)
-        return ret
-
-    @classmethod
-    def merge(cls, ret, url, defaults, options):
-        ret.update(dict(
-            params=url.params,
-            query=options,
-            fragment=url.fragment,
-            query_str=url.query,
-        ))
-
-        for k, v in defaults.items():
-            if not ret.get(k, None):
-                ret[k] = v
-
-        for k in list(options.keys()):
-            if k in ret:
-                if ret[k] is None:
-                    ret[k] = options.pop(k)
-                else:
-                    raise ValueError("{} specified in query string and dsn".format(k))
-
-        for ret_k, options_k in [("hostname", "host")]:
-            if options_k in options:
-                if ret[ret_k] is None:
-                    ret[ret_k] = options.pop(options_k)
-                else:
-                    raise ValueError("{} specified in query string and dsn".format(options_k))
-
-        return ret
-
-    def __init__(self, dsn, **defaults):
-        kwargs = self.parse(dsn, **defaults)
-        for k, v in kwargs.items():
-            setattr(self, k, v)
-        self.configure()
-
-    def configure(self):
-        """designed to be overridden in a child class"""
-        pass
-
-    def __iter__(self):
-        mapping = ['scheme', 'netloc', 'path', 'params', 'query', 'fragment']
-        for k in mapping:
-            yield getattr(self, k, '')
-
-    def __getitem__(self, index):
-        index = int(index)
-        mapping = {
-            0: 'scheme',
-            1: 'netloc',
-            2: 'path',
-            3: 'params',
-            4: 'query',
-            5: 'fragment',
-        }
-
-        return getattr(self, mapping[index], '')
+#     @classmethod
+#     def merge(cls, ret, url, defaults, options):
+#         ret.update(dict(
+#             params=url.params,
+#             query=options,
+#             fragment=url.fragment,
+#             query_str=url.query,
+#         ))
+# 
+#         for k, v in defaults.items():
+#             if not ret.get(k, None):
+#                 ret[k] = v
+# 
+#         for k in list(options.keys()):
+#             if k in ret:
+#                 if ret[k] is None:
+#                     ret[k] = options.pop(k)
+#                 else:
+#                     raise ValueError("{} specified in query string and dsn".format(k))
+# 
+#         for ret_k, options_k in [("hostname", "host")]:
+#             if options_k in options:
+#                 if ret[ret_k] is None:
+#                     ret[ret_k] = options.pop(options_k)
+#                 else:
+#                     raise ValueError("{} specified in query string and dsn".format(options_k))
+# 
+#         return ret
 
     @property
     def schemes(self):
@@ -210,6 +478,14 @@ class ParseResult(object):
         return list(filter(None, self.path.split('/')))
 
     @property
+    def pathparts(self):
+        return self.paths
+
+    @property
+    def parts(self):
+        return self.paths
+
+    @property
     def host(self):
         """the hostname, but I like host better"""
         return self.hostname
@@ -231,9 +507,8 @@ class ParseResult(object):
     def hostloc(self):
         """return host:port"""
         hostloc = quote(self.hostname, safe="")
-        #hostloc = self.hostname
-        if self.port:
-            hostloc = '{hostloc}:{port}'.format(hostloc=hostloc, port=self.port)
+        if port := self.port:
+            hostloc = f"{hostloc}:{port}"
 
         return hostloc
 
@@ -247,28 +522,146 @@ class ParseResult(object):
         # sqlite uses database in its connect method https://docs.python.org/3.6/library/sqlite3.html
         if self.hostname is None:
             database = self.path
+
         else:
-            # we have a host, which means the dsn is in the form: hostname/database most
+            # we have a host, which means the dsn is in the form: //hostname/database most
             # likely, so let's get rid of the slashes when setting the db
             database = self.path.strip("/")
+
         return database
-    # psycopg2 uses dbname: http://initd.org/psycopg/docs/module.html#psycopg2.connect
-    dbname = database
+
+    @property
+    def dbname(self):
+        """psycopg2 uses dbname
+
+        http://initd.org/psycopg/docs/module.html#psycopg2.connect
+        """
+        return self.database
+
+    def __init__(self, dsn, **kwargs):
+        self.parser = self.parse(dsn)
+        self.fields = self.merge(self.parser, **kwargs)
+        self.configure()
+
+    def parse(self, dsn):
+        for parser_class in self.parser_classes:
+            if parser_class.verify(dsn):
+                logger.info(f"Parsing DSN {dsn} with {parser_class.__name__}")
+                return parser_class(dsn)
+
+        raise ValueError(f"Could not find a parser for {dsn}")
+
+    def merge(self, parser, **kwargs):
+        fields = {
+            "scheme": "",
+            "username": None,
+            "password": None,
+            "hostname": None,
+            "hosts": [],
+            "port": None,
+            "path": "",
+            "params": "",
+            "query": "",
+            "fragment": "",
+        }
+        fields.update(kwargs.pop("defaults", {}))
+
+        aliases = {
+            "dbname": "path",
+            "database": "path",
+            "host": "hostname",
+            "user": "username",
+            "secret": "password",
+            "anchor": "fragment",
+        }
+
+        query_params = dict(parser.get("query_params", {}))
+        query_params.update(
+            kwargs.pop("options",
+                kwargs.pop("query_kwargs", 
+                    kwargs.pop("query_params", {})
+                )
+            )
+        )
+
+        for k, v in parser.items():
+            if k != "query_params":
+                ka = aliases[k] if k in aliases else k
+
+                if v:
+                    if ka in fields:
+                        fields[ka] = v
+
+                    else:
+                        query_params.setdefault(ka, v)
+
+        for k, v in kwargs.items():
+            ka = aliases[k] if k in aliases else k
+            if ka in fields:
+                fields[ka] = v
+
+            else:
+                query_params[ka] = v
+
+        for k in list(query_params.keys()):
+            if k in fields:
+                if not fields[k]:
+                    fields[k] = query_params.pop(k)
+
+                else:
+                    raise ValueError(f"{k} specified in multiple places")
+
+        fields["query_params"] = query_params
+        return fields
+
+    def configure(self):
+        """designed to be overridden in a child class"""
+        pass
+
+    def __iter__(self):
+        mapping = ['scheme', 'netloc', 'path', 'params', 'query', 'fragment']
+        for k in mapping:
+            yield getattr(self, k, '')
+
+    def __getitem__(self, index):
+        if isinstance(index, int):
+            mapping = {
+                0: 'scheme',
+                1: 'netloc',
+                2: 'path',
+                3: 'params',
+                4: 'query',
+                5: 'fragment',
+            }
+
+            return getattr(self, mapping[index], None)
+
+        else:
+            return getattr(self, index)
+
+    def __getattr__(self, k):
+        try:
+            return self.fields[k]
+
+        except KeyError as e:
+            raise AttributeError(k) from e
 
     def setdefault(self, key, val):
-        """
-        set a default value for key
+        """set a default value for key
 
         this is different than dict's setdefault because it will set default either
         if the key doesn't exist, or if the value at the key evaluates to False, so
-        an empty string or a None value will also be updated
+        an empty string or a None value will also be updated.
+
+        We do this because the parser usually sets things that weren't in the DSN
+        to None or "", and we want to make sure we update those correctly
 
         :param key: string, the attribute to update
         :param val: mixed, the attributes new value if key has a current value
             that evaluates to False
         """
-        if not getattr(self, key, None):
-            setattr(self, key, val)
+        if not self.fields.get(key, None):
+            self.fields[key] = val
 
     def geturl(self):
         """return the dsn back into url form"""
@@ -277,45 +670,33 @@ class ParseResult(object):
             self.netloc,
             self.path,
             self.params,
-            self.query_str,
+            self.query,
             self.fragment,
         ))
 
 
-def parse_environ(name, parse_class=ParseResult, **defaults):
-    """
-    same as parse() but you pass in an environment variable name that will be used
-    to fetch the dsn
-
-    :param name: string, the environment variable name that contains the dsn to parse
-    :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
-    :returns: ParseResult() tuple
-    """
-    return parse(os.environ[name], parse_class, **defaults)
-
-
 def parse_environs(name, parse_class=ParseResult, **defaults):
-    """
-    same as parse_environ() but will also check name_1, name_2, ..., name_N and
+    """Similar to parse_environ() but will also check name_1, name_2, ..., name_N and
     return all the found dsn strings from the environment
 
     this will look for name, and name_N (where N is 1 through infinity) in the environment,
     if it finds them, it will assume they are dsn urls and will parse them. 
 
-    The num checks (eg PROM_DSN_1, PROM_DSN_2) go in order, so you can't do PROM_DSN_1, PROM_DSN_3,
-    because it will fail on _2 and move on, so make sure your num dsns are in order (eg, 1, 2, 3, ...)
+    The num checks (eg FOO_DSN_1, FOO_DSN_2) go in order, so you can't do FOO_DSN_1,
+    FOO_DSN_3, because it will fail on _2 and move on, so make sure your num dsns
+    are in order (eg, 1, 2, 3, ...)
 
-    example --
-        export DSN_1=some.Interface://host:port/dbname#i1
-        export DSN_2=some.Interface://host2:port/dbname2#i2
+    :Example:
+        export FOO_DSN_1=some.Interface://host:port/dbname#i1
+        export FOO_DSN_2=some.Interface://host2:port/dbname2#i2
         $ python
         >>> import dsnparse
-        >>> print dsnparse.parse_environs('DSN') # prints list with 2 parsed dsn objects
+        >>> print(dsnparse.parse_environs('FOO_DSN')) # list with 2 parsed dsn objects
 
     :param dsn_env_name: string, the name of the environment variables, _1, ... will be appended
     :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :returns: list all the found dsn strings in the environment with the given name prefix
+    :returns: list[ParseResult], all the found dsn strings in the environment with
+        the given name prefix
     """
     ret = []
     if name in os.environ:
@@ -338,6 +719,19 @@ def parse_environs(name, parse_class=ParseResult, **defaults):
     return ret
 
 
+def parse_environ(name, parse_class=ParseResult, **defaults):
+    """
+    same as parse() but you pass in an environment variable name that will be used
+    to fetch the dsn
+
+    :param name: str, the environment variable name that contains the dsn to parse
+    :param parse_class: ParseResult, the class that will be used to hold parsed values
+    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :returns: ParseResult instance
+    """
+    return parse(os.environ[name], parse_class, **defaults)
+
+
 def parse(dsn, parse_class=ParseResult, **defaults):
     """
     parse a dsn to parts similar to parseurl
@@ -347,7 +741,6 @@ def parse(dsn, parse_class=ParseResult, **defaults):
     :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
     :returns: ParseResult() tuple-like instance
     """
-    r = parse_class(dsn, **defaults)
+    r = parse_class(dsn, defaults=defaults)
     return r
-
 
