@@ -74,8 +74,6 @@ class ConnectionString(dict):
                     quote = dsn[chindex]
                     chindex += 1
                     while (dsn[chindex] != quote) or (dsn[chindex - 1] == "\\"):
-                    #while re.match(rf"(?:\\{quote})|(?:[^{quote}])", dsn[chindex]):
-                    #while re.match(rf"[^{quote}]", dsn[chindex]) and not re.match(rf"", dsn[chindex]):
                         value += dsn[chindex]
                         chindex += 1
 
@@ -101,6 +99,12 @@ class ConnectionString(dict):
         return self.normalize_values(d)
 
     def normalize_values(self, d):
+        """Since values in a DSN are strings this attempts to coerce the values
+        to their actual types
+
+        :param d: dict[str, str], the values that have been parsed from the DSN
+        :returns: dict[str, Any], the values with their types coerced
+        """
         if not d: return d
 
         for k, v in d.items():
@@ -121,13 +125,27 @@ class ConnectionString(dict):
 
 
 class ConnectionURI(ConnectionString):
-    """
+    """Parses a traditional connection URI/DSN that is formatted mostly according 
+    to rfc3986 syntax
+
+    rfc3986 section 3:
+         foo://example.com:8042/over/there?name=ferret#nose
+         \_/   \______________/\_________/ \_________/ \__/
+          |           |            |            |        |
+       scheme     authority       path        query   fragment
+          |   _____________________|__
+         / \ /                        \
+         urn:example:animal:ferret:nose
+
     * https://www.ietf.org/rfc/rfc3986.txt
     * superseded by rfc3986: https://www.ietf.org/rfc/rfc2396.txt
+    * postgres connection strings: 
+        https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+    * SQLite connection strings:
+        https://www.sqlite.org/uri.html
     """
     @classmethod
     def verify(cls, dsn):
-        #if re.match(r"^\S+:", dsn):
         if re.match(r"^[^/]+:", dsn):
             return True
         return False
@@ -171,12 +189,18 @@ class ConnectionURI(ConnectionString):
         return authority, dsn
 
     def parse_userinfo(self, authority):
-        # so urlparse doesn't support passwords with special characters /+. So
-        # I'm going to parse out the username:password with a more lenient
-        # parser, the problem is something like "example.com:1000/@" will now
-        # fail but I think it's probably far more common for a dsn to have a
-        # username/password at the beginning than not have one but have a port
-        # and @ symbol in the path
+        """Parse the username:password@ from the authority
+
+        any special characters in the username or password should be urlescaped,
+        you can do this with the urllib.parse.quote function. 
+
+        :Example:
+            password = quote("foo@/:bar", safe="") # foo%40%2F%3Abar
+
+        rfc3986 section 3.2.1:
+            The user information, if present, is followed by a
+            commercial at-sign ("@") that delimits it from the host.
+        """
         username = password = None
         parts = authority.split("@", maxsplit=1)
         if len(parts) > 1:
@@ -196,6 +220,20 @@ class ConnectionURI(ConnectionString):
         return username, password, authority
 
     def parse_hosts(self, authority):
+        """Parse the hosts from the host portion of the authority string
+
+        This deviates from the official spec by allowing multiple hosts to be
+        separated by a comma:
+
+        https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
+            In the connection URI format, you can list multiple host:port pairs
+            separated by commas in the host component of the URI
+
+        rfc3986 section 3.2.2:
+            The host subcomponent of authority is identified by an IP literal
+            encapsulated within square brackets, an IPv4 address in dotted-
+            decimal form, or a registered name
+        """
         hosts = []
         for hostloc in authority.split(","):
             hostname, port = self.parse_hostloc(hostloc)
@@ -204,6 +242,7 @@ class ConnectionURI(ConnectionString):
         return hosts
 
     def parse_hostloc(self, hostloc):
+        """Separate hostname from port"""
         port = None
         if re.search(r":\d+$", hostloc):
             parts = hostloc.split(":")
@@ -270,7 +309,11 @@ class ConnectionURI(ConnectionString):
         return ""
 
     def parse_query_params(self, query):
-        # parse the query into options
+        """parse the query into key value options
+
+        :param query: str, the query string parsed from .parse_query
+        :returns: dict[str, Any]
+        """
         options = {}
         if query:
             for k, kv in urlparse.parse_qs(query, True, True).items():
@@ -303,55 +346,13 @@ class ConnectionURI(ConnectionString):
         return ret
 
 
-#         username, password, dsn_url = cls.parse_credentials(dsn_url)
-# 
-#         url = urlparse.urlparse(dsn_url)
-# 
-#         username = url.username or username
-#         password = url.password or password
-#         hostname = url.hostname
-#         path = url.path
-# 
-#         if url.netloc == ":memory:":
-#             # the special :memory: signifier is used in SQLite to define a fully in
-#             # memory database, I think it makes sense to support it since dsnparse is all
-#             # about making it easy to parse *any* dsn
-#             path = url.netloc
-#             hostname = None
-#             port = None
-# 
-#         else:
-#             # compensate for relative path
-#             if url.hostname == "." or url.hostname == "..":
-#                 path = "".join([hostname, path])
-#                 hostname = None
-# 
-#             port = url.port
-# 
-#         if hostname is not None:
-#             hostname = unquote(hostname)
-# 
-#         options = cls.parse_query(url)
-#         ret = {
-#             "dsn": dsn,
-#             "scheme": scheme,
-#             "hostname": hostname,
-#             "path": path,
-#             "port": port,
-#             "username": username,
-#             "password": password,
-#         }
-#         ret = cls.merge(ret, url, defaults, options)
-#         return ret
-
-
 class ParseResult(object):
     """
     hold the results of a parsed dsn
 
-    this is very similar to urlparse.ParseResult tuple
-
-    http://docs.python.org/2/library/urlparse.html#results-of-urlparse-and-urlsplit
+    this acts very similarly to the urlparse.ParseResult tuple
+        * https://github.com/python/cpython/blob/3.10/Lib/urllib/parse.py
+        * http://docs.python.org/2/library/urlparse.html#results-of-urlparse-and-urlsplit
 
     it exposes the following attributes --
         scheme
@@ -364,92 +365,26 @@ class ParseResult(object):
         username
         password
         netloc
-        query -- a dict of the query string
-        query_str -- the raw query string
+        query -- the raw query string
+        query_params -- a dict of the query string
         port
         fragment
         anchor -- same as fragment, just an alternative name
-    """
 
+    :Example:
+        # DSN with only a scheme
+        r = ParseResult("foo:")
+        r.scheme # foo
+
+        # DSN setting username and password
+        r = ParseResult("foo://user:passd@")
+        r.username # user
+        r.password # pass
+    """
     parser_classes = [
         ConnectionString,
         ConnectionURI,
     ]
-
-#     @classmethod
-#     def parse(cls, dsn, **defaults):
-#         cls.verify(dsn)
-# 
-#         scheme, dsn_url = cls.parse_scheme(dsn)
-#         username, password, dsn_url = cls.parse_credentials(dsn_url)
-# 
-#         url = urlparse.urlparse(dsn_url)
-# 
-#         username = url.username or username
-#         password = url.password or password
-#         hostname = url.hostname
-#         path = url.path
-# 
-#         if url.netloc == ":memory:":
-#             # the special :memory: signifier is used in SQLite to define a fully in
-#             # memory database, I think it makes sense to support it since dsnparse is all
-#             # about making it easy to parse *any* dsn
-#             path = url.netloc
-#             hostname = None
-#             port = None
-# 
-#         else:
-#             # compensate for relative path
-#             if url.hostname == "." or url.hostname == "..":
-#                 path = "".join([hostname, path])
-#                 hostname = None
-# 
-#             port = url.port
-# 
-#         if hostname is not None:
-#             hostname = unquote(hostname)
-# 
-#         options = cls.parse_query(url)
-#         ret = {
-#             "dsn": dsn,
-#             "scheme": scheme,
-#             "hostname": hostname,
-#             "path": path,
-#             "port": port,
-#             "username": username,
-#             "password": password,
-#         }
-#         ret = cls.merge(ret, url, defaults, options)
-#         return ret
-
-#     @classmethod
-#     def merge(cls, ret, url, defaults, options):
-#         ret.update(dict(
-#             params=url.params,
-#             query=options,
-#             fragment=url.fragment,
-#             query_str=url.query,
-#         ))
-# 
-#         for k, v in defaults.items():
-#             if not ret.get(k, None):
-#                 ret[k] = v
-# 
-#         for k in list(options.keys()):
-#             if k in ret:
-#                 if ret[k] is None:
-#                     ret[k] = options.pop(k)
-#                 else:
-#                     raise ValueError("{} specified in query string and dsn".format(k))
-# 
-#         for ret_k, options_k in [("hostname", "host")]:
-#             if options_k in options:
-#                 if ret[ret_k] is None:
-#                     ret[ret_k] = options.pop(options_k)
-#                 else:
-#                     raise ValueError("{} specified in query string and dsn".format(options_k))
-# 
-#         return ret
 
     @property
     def schemes(self):
@@ -552,6 +487,8 @@ class ParseResult(object):
         raise ValueError(f"Could not find a parser for {dsn}")
 
     def merge(self, parser, **kwargs):
+        # match defaults to urlparse result
+        # https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse
         fields = {
             "scheme": "",
             "username": None,

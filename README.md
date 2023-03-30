@@ -35,7 +35,7 @@ Also, dsnparse can easily use environment variables:
 r = dsnparse.parse_environ('ENVIRONMENT_VARIABLE_NAME')
 ```
 
-I tried to keep the interface very similar to `urlparse` so it will feel familiar to use.
+I tried to keep the interface very similar to [urlparse](https://docs.python.org/3/library/urllib.parse.html#urllib.parse.urlparse) so it will feel familiar to use.
 
 
 ## Customizing
