@@ -48,7 +48,6 @@ class ConnectionStringTest(TestCase):
             ),
         ]
 
-
         for dsn, test_out in tests:
             r = ConnectionString(dsn)
             for k, v in test_out.items():
@@ -446,6 +445,6 @@ class DsnParseTest(TestCase):
             self.assertEqual(os.environ['ENVIRONS_DSN_{x}'.format(x=x)], rs[x - 1].geturl())
 
 
-
 if __name__ == '__main__':
     main()
+
