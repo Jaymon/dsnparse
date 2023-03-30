@@ -612,7 +612,7 @@ class ParseResult(object):
         ))
 
 
-def parse_environs(name, parse_class=ParseResult, **defaults):
+def parse_environs(name, parse_class=ParseResult, **kwargs):
     """Similar to parse_environ() but will also check name_1, name_2, ..., name_N and
     return all the found dsn strings from the environment
 
@@ -637,7 +637,7 @@ def parse_environs(name, parse_class=ParseResult, **defaults):
     """
     ret = []
     if name in os.environ:
-        ret.append(parse_environ(name, parse_class, **defaults))
+        ret.append(parse_environ(name, parse_class, **kwargs))
 
     # now try importing _1 -> _N dsns
     increment_name = lambda name, num: '{name}_{num}'.format(name=name, num=num)
@@ -646,7 +646,7 @@ def parse_environs(name, parse_class=ParseResult, **defaults):
     if dsn_env_num_name in os.environ:
         try:
             while True:
-                ret.append(parse_environ(dsn_env_num_name, parse_class, **defaults))
+                ret.append(parse_environ(dsn_env_num_name, parse_class, **kwargs))
                 dsn_num += 1
                 dsn_env_num_name = increment_name(name, dsn_num)
 
@@ -656,28 +656,28 @@ def parse_environs(name, parse_class=ParseResult, **defaults):
     return ret
 
 
-def parse_environ(name, parse_class=ParseResult, **defaults):
+def parse_environ(name, parse_class=ParseResult, **kwargs):
     """
     same as parse() but you pass in an environment variable name that will be used
     to fetch the dsn
 
     :param name: str, the environment variable name that contains the dsn to parse
     :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :param **kwargs: dict, any values you want to have defaults for if they aren't in the dsn
     :returns: ParseResult instance
     """
-    return parse(os.environ[name], parse_class, **defaults)
+    return parse(os.environ[name], parse_class, **kwargs)
 
 
-def parse(dsn, parse_class=ParseResult, **defaults):
+def parse(dsn, parse_class=ParseResult, **kwargs):
     """
     parse a dsn to parts similar to parseurl
 
     :param dsn: string, the dsn to parse
     :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :param **defaults: dict, any values you want to have defaults for if they aren't in the dsn
+    :param **kwargs: dict, any values you want to have defaults for if they aren't in the dsn
     :returns: ParseResult() tuple-like instance
     """
-    r = parse_class(dsn, defaults=defaults)
+    r = parse_class(dsn, **kwargs)
     return r
 
