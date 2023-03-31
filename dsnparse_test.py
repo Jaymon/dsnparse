@@ -55,7 +55,7 @@ class ConnectionStringTest(TestCase):
 
 
 class ConnectionURITest(TestCase):
-    def test_parse_scheme(self):
+    def test_parse_scheme_1(self):
         r = ConnectionURI()
         parts = r.parse_scheme("foo:")
         self.assertEqual("foo", parts[0])
@@ -68,6 +68,13 @@ class ConnectionURITest(TestCase):
         parts = r.parse_scheme("foo")
         self.assertEqual("", parts[0])
         self.assertEqual("foo", parts[1])
+
+    def test_parse_scheme_no_hosts(self):
+        r = ConnectionURI("foo:")
+        self.assertFalse("hosts" in r)
+
+        r = dsnparse.parse("foo:")
+        self.assertEqual([], r.hosts)
 
     def test_parse_authority(self):
         r = ConnectionURI()

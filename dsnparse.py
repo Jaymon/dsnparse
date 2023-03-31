@@ -162,8 +162,8 @@ class ConnectionURI(ConnectionString):
         if first_colon >= 0:
             scheme = unquote(dsn[0:first_colon])
             dsn = dsn[first_colon+1:]
+            logger.debug(f"Parsed scheme {scheme}")
 
-        logger.debug(f"Parsed scheme {scheme}")
         return scheme, dsn
 
     def parse_authority(self, dsn):
@@ -184,8 +184,8 @@ class ConnectionURI(ConnectionString):
                     authority += ch
 
             dsn = dsn[len(authority) + len(sentinal):]
+            logger.debug(f"Parsed authority with {len(authority)} characters")
 
-        logger.debug(f"Parsed authority with {len(authority)} characters")
         return authority, dsn
 
     def parse_userinfo(self, authority):
@@ -238,7 +238,8 @@ class ConnectionURI(ConnectionString):
         for hostloc in authority.split(","):
             hostname, port = self.parse_hostloc(hostloc)
             logger.debug(f"Parsed host {hostname} with port {port}")
-            hosts.append((hostname, port))
+            if hostname or port:
+                hosts.append((hostname, port))
         return hosts
 
     def parse_hostloc(self, hostloc):
@@ -269,9 +270,10 @@ class ConnectionURI(ConnectionString):
 
             path += ch
 
-        dsn = dsn[len(path):]
+        if path:
+            dsn = dsn[len(path):]
+            logger.debug(f"Parsed path {path}")
 
-        logger.debug(f"Parsed path {path}")
         return path, dsn
 
     def parse_query(self, dsn):
@@ -291,8 +293,8 @@ class ConnectionURI(ConnectionString):
                 query += ch
 
             dsn = dsn[len(query) + len(sentinal):]
+            logger.debug(f"Parsed query with {len(query)} characters")
 
-        logger.debug(f"Parsed query with {len(query)} characters")
         return query, dsn
 
     def parse_fragment(self, dsn):
@@ -323,7 +325,8 @@ class ConnectionURI(ConnectionString):
                 else:
                     options[k] = kv[0]
 
-        logger.debug(f"Parsed query_params with {', '.join(options.keys())} keys")
+            logger.debug(f"Parsed query_params with {', '.join(options.keys())} keys")
+
         return self.normalize_values(options)
 
     def parse(self, dsn):
@@ -481,7 +484,7 @@ class ParseResult(object):
     def parse(self, dsn):
         for parser_class in self.parser_classes:
             if parser_class.verify(dsn):
-                logger.info(f"Parsing DSN {dsn} with {parser_class.__name__}")
+                logger.info(f"Parsing DSN {dsn} with {parser_class.__name__} class")
                 return parser_class(dsn)
 
         raise ValueError(f"Could not find a parser for {dsn}")
