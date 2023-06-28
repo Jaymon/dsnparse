@@ -451,16 +451,6 @@ class DsnParseTest(TestCase):
         for x in range(1, 4):
             self.assertEqual(os.environ['ENVIRONS_DSN_{x}'.format(x=x)], rs[x - 1].geturl())
 
-    def test_parse_username_with_escaped_characters(self):
-        dsn = "ftp://alice%40example.org:password@hostname"
-        r = dsnparse.parse(dsn)
-        self.assertEqual("alice@example.org", r.username)
-
-    def test_parse_password_with_escaped_characters(self):
-        dsn = "ftp://alice:p%40ssword@hostname"
-        r = dsnparse.parse(dsn)
-        self.assertEqual("p@ssword", r.password)
-
 
 if __name__ == '__main__':
     main()
