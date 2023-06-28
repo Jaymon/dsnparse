@@ -7,7 +7,7 @@ import os
 import logging
 
 
-__version__ = '0.2.0'
+__version__ = '0.2.1'
 
 
 logger = logging.getLogger(__name__)
@@ -484,7 +484,14 @@ class ParseResult(object):
     def parse(self, dsn):
         for parser_class in self.parser_classes:
             if parser_class.verify(dsn):
-                logger.info(f"Parsing DSN {dsn} with {parser_class.__name__} class")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.info(
+                        f"Parsing DSN {dsn} with {parser_class.__name__} class"
+                    )
+
+                else:
+                    logger.info(f"Parsing DSN with {parser_class.__name__} class")
+
                 return parser_class(dsn)
 
         raise ValueError(f"Could not find a parser for {dsn}")
