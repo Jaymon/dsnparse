@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from __future__ import unicode_literals, division, print_function, absolute_import
 import urllib.parse as urlparse
 from urllib.parse import unquote, quote
 import re
@@ -7,14 +6,14 @@ import os
 import logging
 
 
-__version__ = '0.2.1'
+__version__ = '0.2.2'
 
 
 logger = logging.getLogger(__name__)
 
 
 class ConnectionString(dict):
-    """A connection string is a name=value string
+    r"""A connection string is a name=value string
 
     :Example:
         dsn = "name=value name2 = 'value 2'"
@@ -23,11 +22,12 @@ class ConnectionString(dict):
         print(c.name2) # value 2
 
     https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
-        In the keyword/value format, each parameter setting is in the form keyword = value,
-        with space(s) between settings. Spaces around a setting's equal sign are optional.
-        To write an empty value, or a value containing spaces, surround it with single
-        quotes, for example keyword = 'a value'. Single quotes and backslashes within
-        a value must be escaped with a backslash, i.e., \' and \\.
+        In the keyword/value format, each parameter setting is in the form
+        keyword = value, with space(s) between settings. Spaces around a
+        setting's equal sign are optional.  To write an empty value, or a value
+        containing spaces, surround it with single quotes, for example keyword
+        = 'a value'. Single quotes and backslashes within a value must be
+        escaped with a backslash, i.e., \' and \\.
     """
     @classmethod
     def verify(cls, dsn):
@@ -70,7 +70,8 @@ class ConnectionString(dict):
                 # Gather value
                 value = ""
                 if dsn[chindex] == "\"" or dsn[chindex] == "'":
-                    # value is an enclosed string, so go until we find the other quote
+                    # value is an enclosed string, so go until we find the
+                    # other quote
                     quote = dsn[chindex]
                     chindex += 1
                     while (dsn[chindex] != quote) or (dsn[chindex - 1] == "\\"):
@@ -125,8 +126,8 @@ class ConnectionString(dict):
 
 
 class ConnectionURI(ConnectionString):
-    """Parses a traditional connection URI/DSN that is formatted mostly according 
-    to rfc3986 syntax
+    r"""Parses a traditional connection URI/DSN that is formatted mostly
+    according to rfc3986 syntax
 
     rfc3986 section 3:
          foo://example.com:8042/over/there?name=ferret#nose
@@ -213,7 +214,9 @@ class ConnectionURI(ConnectionString):
             if len(userinfo) > 1:
                 if userinfo[1]:
                     password = unquote(userinfo[1])
-                    logger.debug(f"Parsed password with {len(password)} characters")
+                    logger.debug(
+                        f"Parsed password with {len(password)} characters"
+                    )
 
             authority = parts[1]
 
@@ -260,8 +263,8 @@ class ConnectionURI(ConnectionString):
     def parse_path(self, dsn):
         """
         rfc3986 section 3.3:
-            The path is terminated by the first question mark ("?") or number sign
-            ("#") character, or by the end of the URI.
+            The path is terminated by the first question mark ("?") or number
+            sign ("#") character, or by the end of the URI.
         """
         path = ""
         for ch in dsn:
@@ -300,8 +303,8 @@ class ConnectionURI(ConnectionString):
     def parse_fragment(self, dsn):
         """
         rfc3986 section 3.5:
-            A fragment identifier component is indicated by the presence of a number
-            sign ("#") character and terminated by the end of the URI
+            A fragment identifier component is indicated by the presence of a
+            number sign ("#") character and terminated by the end of the URI
         """
         sentinal = "#"
         if dsn.startswith(sentinal):
@@ -325,7 +328,9 @@ class ConnectionURI(ConnectionString):
                 else:
                     options[k] = kv[0]
 
-            logger.debug(f"Parsed query_params with {', '.join(options.keys())} keys")
+            logger.debug(
+                f"Parsed query_params with {', '.join(options.keys())} keys"
+            )
 
         return self.normalize_values(options)
 
@@ -335,7 +340,9 @@ class ConnectionURI(ConnectionString):
 
         authority, dsn = self.parse_authority(dsn)
         if authority:
-            ret["username"], ret["password"], authority = self.parse_userinfo(authority)
+            ret["username"], ret["password"], authority = self.parse_userinfo(
+                authority
+            )
             ret["hosts"] = self.parse_hosts(authority)
             if ret["hosts"]:
                 ret["hostname"] = ret["hosts"][0][0]
@@ -359,9 +366,11 @@ class ParseResult(object):
 
     it exposes the following attributes --
         scheme
-        schemes -- if your scheme has +'s in it, then this will contain a list of schemes split by +
+        schemes -- if your scheme has +'s in it, then this will contain a list
+            of schemes split by +
         path
-        paths -- the path segment split by /, so "/foo/bar" would be ["foo", "bar"]
+        paths -- the path segment split by /, so "/foo/bar" would be
+            ["foo", "bar"]
         host -- same as hostname (I just like host better)
         hostname
         hostloc -- host:port
@@ -462,8 +471,9 @@ class ParseResult(object):
             database = self.path
 
         else:
-            # we have a host, which means the dsn is in the form: //hostname/database most
-            # likely, so let's get rid of the slashes when setting the db
+            # we have a host, which means the dsn is in the form:
+            # //hostname/database most likely, so let's get rid of the slashes
+            # when setting the db
             database = self.path.strip("/")
 
         return database
@@ -490,7 +500,9 @@ class ParseResult(object):
                     )
 
                 else:
-                    logger.info(f"Parsing DSN with {parser_class.__name__} class")
+                    logger.info(
+                        f"Parsing DSN with {parser_class.__name__} class"
+                    )
 
                 return parser_class(dsn)
 
@@ -596,12 +608,12 @@ class ParseResult(object):
     def setdefault(self, key, val):
         """set a default value for key
 
-        this is different than dict's setdefault because it will set default either
-        if the key doesn't exist, or if the value at the key evaluates to False, so
-        an empty string or a None value will also be updated.
+        this is different than dict's setdefault because it will set default
+        either if the key doesn't exist, or if the value at the key evaluates
+        to False, so an empty string or a None value will also be updated.
 
-        We do this because the parser usually sets things that weren't in the DSN
-        to None or "", and we want to make sure we update those correctly
+        We do this because the parser usually sets things that weren't in the
+        DSN to None or "", and we want to make sure we update those correctly
 
         :param key: string, the attribute to update
         :param val: mixed, the attributes new value if key has a current value
@@ -623,40 +635,45 @@ class ParseResult(object):
 
 
 def parse_environs(name, parse_class=ParseResult, **kwargs):
-    """Similar to parse_environ() but will also check name_1, name_2, ..., name_N and
-    return all the found dsn strings from the environment
+    """Similar to parse_environ() but will also check name_1, name_2, ...,
+    name_N and return all the found dsn strings from the environment
 
-    this will look for name, and name_N (where N is 1 through infinity) in the environment,
-    if it finds them, it will assume they are dsn urls and will parse them. 
+    this will look for name, and name_N (where N is 1 through infinity) in the
+    environment, if it finds them, it will assume they are dsn urls and will
+    parse them. 
 
-    The num checks (eg FOO_DSN_1, FOO_DSN_2) go in order, so you can't do FOO_DSN_1,
-    FOO_DSN_3, because it will fail on _2 and move on, so make sure your num dsns
-    are in order (eg, 1, 2, 3, ...)
+    The num checks (eg FOO_DSN_1, FOO_DSN_2) go in order, so you can't do
+    FOO_DSN_1, FOO_DSN_3, because it will fail on _2 and move on, so make sure
+    your num dsns are in order (eg, 1, 2, 3, ...)
 
     :Example:
         export FOO_DSN_1=some.Interface://host:port/dbname#i1
         export FOO_DSN_2=some.Interface://host2:port/dbname2#i2
         $ python
         >>> import dsnparse
-        >>> print(dsnparse.parse_environs('FOO_DSN')) # list with 2 parsed dsn objects
+        >>> print(dsnparse.parse_environs('FOO_DSN')) # list with 2 dsn objects
 
-    :param dsn_env_name: string, the name of the environment variables, _1, ... will be appended
-    :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :returns: list[ParseResult], all the found dsn strings in the environment with
-        the given name prefix
+    :param dsn_env_name: string, the name of the environment variables, _1, ...
+        will be appended
+    :param parse_class: ParseResult, the class that will be used to hold parsed
+        values
+    :returns: list[ParseResult], all the found dsn strings in the environment
+        with the given name prefix
     """
     ret = []
     if name in os.environ:
         ret.append(parse_environ(name, parse_class, **kwargs))
 
     # now try importing _1 -> _N dsns
-    increment_name = lambda name, num: '{name}_{num}'.format(name=name, num=num)
+    increment_name = lambda name, num: f"{name}_{num}"
     dsn_num = 0 if increment_name(name, 0) in os.environ else 1
     dsn_env_num_name = increment_name(name, dsn_num)
     if dsn_env_num_name in os.environ:
         try:
             while True:
-                ret.append(parse_environ(dsn_env_num_name, parse_class, **kwargs))
+                ret.append(
+                    parse_environ(dsn_env_num_name, parse_class, **kwargs)
+                )
                 dsn_num += 1
                 dsn_env_num_name = increment_name(name, dsn_num)
 
@@ -668,12 +685,15 @@ def parse_environs(name, parse_class=ParseResult, **kwargs):
 
 def parse_environ(name, parse_class=ParseResult, **kwargs):
     """
-    same as parse() but you pass in an environment variable name that will be used
-    to fetch the dsn
+    same as parse() but you pass in an environment variable name that will be
+    used to fetch the dsn
 
-    :param name: str, the environment variable name that contains the dsn to parse
-    :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :param **kwargs: dict, any values you want to have defaults for if they aren't in the dsn
+    :param name: str, the environment variable name that contains the dsn to
+        parse
+    :param parse_class: ParseResult, the class that will be used to hold parsed
+        values
+    :param **kwargs: dict, any values you want to have defaults for if they
+        aren't in the dsn
     :returns: ParseResult instance
     """
     return parse(os.environ[name], parse_class, **kwargs)
@@ -684,8 +704,10 @@ def parse(dsn, parse_class=ParseResult, **kwargs):
     parse a dsn to parts similar to parseurl
 
     :param dsn: string, the dsn to parse
-    :param parse_class: ParseResult, the class that will be used to hold parsed values
-    :param **kwargs: dict, any values you want to have defaults for if they aren't in the dsn
+    :param parse_class: ParseResult, the class that will be used to hold parsed
+        values
+    :param **kwargs: dict, any values you want to have defaults for if they
+        aren't in the dsn
     :returns: ParseResult() tuple-like instance
     """
     r = parse_class(dsn, **kwargs)
