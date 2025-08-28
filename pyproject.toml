@@ -1,0 +1,50 @@
+[project]
+requires-python = ">=3.10"
+name = "dsnparse"
+dynamic = [
+  "version"
+]
+readme = "README.md"
+description = "parse dsn urls"
+authors = [
+  { name = "Jay Marcyes", email = "jay@marcyes.com" }
+]
+keywords = [
+  "dsn url parser database configuration"
+]
+classifiers = [
+  "Development Status :: 5 - Production/Stable",
+  "Environment :: Plugins",
+  "Intended Audience :: Developers",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3"
+]
+license = "MIT"
+license-files = [
+  "LICENSE.txt"
+]
+
+[build-system]
+requires = [
+  "setuptools>=62.3.0"
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+exclude = [
+  "tests*",
+  "example*",
+  "*_test*",
+  "docs*"
+]
+include = [
+  "dsnparse*"
+]
+
+[tool.setuptools.dynamic]
+version = { attr = "dsnparse.__version__" }
+
+[project.urls]
+Repository = "https://github.com/Jaymon/dsnparse"
+Homepage = "http://github.com/Jaymon/dsnparse"
+

@@ -6,7 +6,7 @@ import os
 import logging
 
 
-__version__ = '0.2.2'
+__version__ = "0.3.0"
 
 
 logger = logging.getLogger(__name__)
@@ -74,7 +74,10 @@ class ConnectionString(dict):
                     # other quote
                     quote = dsn[chindex]
                     chindex += 1
-                    while (dsn[chindex] != quote) or (dsn[chindex - 1] == "\\"):
+                    while (
+                        (dsn[chindex] != quote)
+                        or (dsn[chindex - 1] == "\\")
+                    ):
                         value += dsn[chindex]
                         chindex += 1
 
@@ -192,8 +195,8 @@ class ConnectionURI(ConnectionString):
     def parse_userinfo(self, authority):
         """Parse the username:password@ from the authority
 
-        any special characters in the username or password should be urlescaped,
-        you can do this with the urllib.parse.quote function. 
+        any special characters in the username or password should be
+        urlescaped, you can do this with the urllib.parse.quote function. 
 
         :Example:
             password = quote("foo@/:bar", safe="") # foo%40%2F%3Abar
@@ -229,8 +232,8 @@ class ConnectionURI(ConnectionString):
         separated by a comma:
 
         https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
-            In the connection URI format, you can list multiple host:port pairs
-            separated by commas in the host component of the URI
+            In the connection URI format, you can list multiple host:port
+            pairs separated by commas in the host component of the URI
 
         rfc3986 section 3.2.2:
             The host subcomponent of authority is identified by an IP literal
@@ -283,8 +286,8 @@ class ConnectionURI(ConnectionString):
         """
         rfc3986 section 3.4:
             The query component is indicated by the first question mark ("?")
-            character and terminated by a number sign ("#") character or by the
-            end of the URI
+            character and terminated by a number sign ("#") character or by
+            the end of the URI
         """
         query = ""
         sentinal = "?"
@@ -653,10 +656,10 @@ def parse_environs(name, parse_class=ParseResult, **kwargs):
         >>> import dsnparse
         >>> print(dsnparse.parse_environs('FOO_DSN')) # list with 2 dsn objects
 
-    :param dsn_env_name: string, the name of the environment variables, _1, ...
-        will be appended
-    :param parse_class: ParseResult, the class that will be used to hold parsed
-        values
+    :param dsn_env_name: string, the name of the environment variables, _1,
+        ...  will be appended
+    :param parse_class: ParseResult, the class that will be used to hold
+        parsed values
     :returns: list[ParseResult], all the found dsn strings in the environment
         with the given name prefix
     """
@@ -690,8 +693,8 @@ def parse_environ(name, parse_class=ParseResult, **kwargs):
 
     :param name: str, the environment variable name that contains the dsn to
         parse
-    :param parse_class: ParseResult, the class that will be used to hold parsed
-        values
+    :param parse_class: ParseResult, the class that will be used to hold
+        parsed values
     :param **kwargs: dict, any values you want to have defaults for if they
         aren't in the dsn
     :returns: ParseResult instance
@@ -704,8 +707,8 @@ def parse(dsn, parse_class=ParseResult, **kwargs):
     parse a dsn to parts similar to parseurl
 
     :param dsn: string, the dsn to parse
-    :param parse_class: ParseResult, the class that will be used to hold parsed
-        values
+    :param parse_class: ParseResult, the class that will be used to hold
+        parsed values
     :param **kwargs: dict, any values you want to have defaults for if they
         aren't in the dsn
     :returns: ParseResult() tuple-like instance
