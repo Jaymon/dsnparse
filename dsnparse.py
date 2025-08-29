@@ -140,7 +140,7 @@ class ConnectionURI(ConnectionString):
 
     * https://www.ietf.org/rfc/rfc3986.txt
     * superseded by rfc3986: https://www.ietf.org/rfc/rfc2396.txt
-    * postgres connection strings: 
+    * postgres connection strings:
         https://www.postgresql.org/docs/current/libpq-connect.html#LIBPQ-CONNSTRING
     * SQLite connection strings:
         https://www.sqlite.org/uri.html
@@ -193,7 +193,7 @@ class ConnectionURI(ConnectionString):
         """Parse the username:password@ from the authority
 
         any special characters in the username or password should be
-        urlescaped, you can do this with the urllib.parse.quote function. 
+        urlescaped, you can do this with the urllib.parse.quote function.
 
         :Example:
             password = quote("foo@/:bar", safe="") # foo%40%2F%3Abar
@@ -537,7 +537,7 @@ class ParseResult(object):
         query_params = dict(parser.get("query_params", {}))
         query_params.update(
             kwargs.pop("options",
-                kwargs.pop("query_kwargs", 
+                kwargs.pop("query_kwargs",
                     kwargs.pop("query_params", {})
                 )
             )
@@ -640,7 +640,7 @@ def parse_environs(name, parse_class=ParseResult, **kwargs):
 
     this will look for name, and name_N (where N is 1 through infinity) in the
     environment, if it finds them, it will assume they are dsn urls and will
-    parse them. 
+    parse them.
 
     The num checks (eg FOO_DSN_1, FOO_DSN_2) go in order, so you can't do
     FOO_DSN_1, FOO_DSN_3, because it will fail on _2 and move on, so make sure
