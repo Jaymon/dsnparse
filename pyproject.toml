@@ -1,9 +1,7 @@
 [project]
 requires-python = ">=3.10"
 name = "dsnparse"
-dynamic = [
-  "version"
-]
+version = "0.4.0"
 readme = "README.md"
 description = "parse dsn urls"
 authors = [
@@ -40,9 +38,6 @@ exclude = [
 include = [
   "dsnparse*"
 ]
-
-[tool.setuptools.dynamic]
-version = { attr = "dsnparse.__version__" }
 
 [project.urls]
 Repository = "https://github.com/Jaymon/dsnparse"
