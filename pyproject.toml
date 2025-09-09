@@ -30,6 +30,9 @@ requires = [
 ]
 build-backend = "setuptools.build_meta"
 
+[tool.setuptools]
+py-modules = ["dsnparse"]
+
 [tool.setuptools.packages.find]
 exclude = [
   "tests*",
@@ -37,9 +40,9 @@ exclude = [
   "*_test*",
   "docs*"
 ]
-include = [
-  "dsnparse*"
-]
+# include = [
+#   "dsnparse*"
+# ]
 
 [tool.setuptools.dynamic]
 version = { attr = "dsnparse.__version__" }
